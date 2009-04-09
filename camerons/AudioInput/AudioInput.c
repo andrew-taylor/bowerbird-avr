@@ -100,7 +100,7 @@ EVENT_HANDLER(USB_ConfigurationChanged)
 }
 
 // FIXME just for debugging. The last channel is the square wave.
-static int16_t gain[AUDIO_CHANNELS] = {0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 101};
+static int16_t gain[AUDIO_CHANNELS] = {0x41};//, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 101};
 
 EVENT_HANDLER(USB_UnhandledControlPacket)
 {

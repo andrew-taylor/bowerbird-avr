@@ -124,7 +124,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM =
       SourceID:			INPUT_TERMINAL_ID,
       ControlSize:              1, // the controls are described with one byte.
       MasterControls:           0, // FEATURE_VOLUME, // FIXME master, applies to all channels.
-      ChannelControls:          { FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME }, // FIXME per-channel controls, one entry per channel
+      ChannelControls:          { FEATURE_VOLUME},//, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME }, // FIXME per-channel controls, one entry per channel
       FeatureUnitStrIndex:	NO_DESCRIPTOR_STRING			
     },
 
