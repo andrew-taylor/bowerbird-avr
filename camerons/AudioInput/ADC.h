@@ -95,8 +95,9 @@ static inline void ADC_Init(void)
    * CPHA: leading edge RX, trailing edge TX.
    * DORD: 0, MSB first.
    */
-  SPCR = (1 << SPE) | (1 << MSTR) | (1 << CPOL) | (0 << CPHA);
-  SPSR = SPI2X;
+  SPCR = ((1 << SPE) | (1 << MSTR) | (1 << CPOL))
+	 	& (~(1 << SPR1) & ~(1 << SPR0) & ~(1 << CPHA) & ~(1 << DORD));
+  SPSR = (1 << SPI2X);
 
   /* Reset the ADC (done once at boot time). p17, Fig 11 of the datasheet. */
   SPI_SendWord(0xFFFF);
