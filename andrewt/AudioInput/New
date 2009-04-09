@@ -1,0 +1,14 @@
+make && su1  ../../../dfu-programmer/trunk/dfu-programmer/src/dfu-programmer at90usb647 erase && su1 ../../../dfu-programmer/trunk/dfu-programmer/src/dfu-programmer at90usb647 flash AudioInput.hex && su1 ../../../dfu-programmer/trunk/dfu-programmer/src/dfu-programmer at90usb647 start && sleep 1 && amixer -D card2 
+8000000/64000 -> 125
+
+                            4 ch.  2 ch.  1 ch.                 
+64000khz sampling 5khz tone 27071  15087  9415
+48000khz                    20303  11315  7061
+32000khz                    13535  7543   4707
+
+8000000/21170 -> 377.893245158243
+
+OCR0A   = ( (unsigned int)F_CPU / AUDIO_SAMPLE_FREQUENCY);
+1 channels 33930hz
+2 channels 21170hz
+4 channels 11790hz
