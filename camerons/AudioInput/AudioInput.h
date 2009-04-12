@@ -52,6 +52,9 @@
 
 #define AUDIO_REQ_SET_Cur    0x01
 
+/* Task Definitions: */
+TASK(USB_Audio_Task);
+
 /* Event Handlers: */
 HANDLES_EVENT(USB_Connect);
 HANDLES_EVENT(USB_Disconnect);

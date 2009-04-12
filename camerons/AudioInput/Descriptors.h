@@ -97,8 +97,8 @@
 #define AUDIO_STREAM_EPSIZE         ENDPOINT_MAX_SIZE
 
 // FIXME This can't get too small, otherwise the 8-bit timer isn't fat enough.
-#define AUDIO_SAMPLE_FREQUENCY      21170
-//#define AUDIO_SAMPLE_FREQUENCY      64000
+//#define AUDIO_SAMPLE_FREQUENCY      21170
+#define AUDIO_SAMPLE_FREQUENCY      62500
 
 // 8 audio streams and a square wave.
 // #define AUDIO_CHANNELS 9
@@ -242,7 +242,7 @@ typedef struct
 		
 /* Function Prototypes: */
 bool USB_GetDescriptor(const uint16_t wValue, const uint8_t wIndex,
-		       void** const DescriptorAddress, uint16_t* const DescriptorSize)
-  ATTR_WARN_UNUSED_RESULT ATTR_WEAK ATTR_NON_NULL_PTR_ARG(3, 4);
+		void** const DescriptorAddress, uint16_t* const DescriptorSize)
+				ATTR_WARN_UNUSED_RESULT ATTR_WEAK ATTR_NON_NULL_PTR_ARG(3, 4);
 
 #endif
