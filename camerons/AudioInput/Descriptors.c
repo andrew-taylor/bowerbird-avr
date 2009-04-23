@@ -51,7 +51,7 @@ USB_Descriptor_Device_t DeviceDescriptor PROGMEM = {
 	SubClass: 0x00,
 	Protocol: 0x00,
 
-	Endpoint0Size: 8,
+	Endpoint0Size: 64,
 	VendorID: 0x03EB,
 	ProductID: 0x2047,
 	ReleaseNumber: 0x0100,
@@ -108,7 +108,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		InterfaceNumbers: { 1 },   // interface 1 is the stream
 	},
 
-	// We have one audio cluster.
+	// We have one audio cluster, specified as an array of microphones
 	InputTerminal: {
 		Header: {
 			Size: sizeof(USB_AudioInputTerminal_t),
@@ -134,14 +134,35 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		UnitID: FEATURE_UNIT_ID,
 		SourceID: INPUT_TERMINAL_ID,
 		ControlSize: 1,  // the controls are described with one byte.
-		MasterControls: 0,  // FEATURE_VOLUME, // FIXME master, applies to all channels.
+		MasterControls: 0, // master, applies to all channels.
 		ChannelControls: {
-			FEATURE_VOLUME, FEATURE_VOLUME
-		},   //, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME, FEATURE_VOLUME }, // FIXME per-channel controls, one entry per channel
+			FEATURE_MUTE | FEATURE_VOLUME,
+#if AUDIO_CHANNELS > 1
+			FEATURE_MUTE | FEATURE_VOLUME | FEATURE_AUTOMATIC_GAIN,
+#if AUDIO_CHANNELS > 2
+			FEATURE_MUTE | FEATURE_VOLUME,
+#if AUDIO_CHANNELS > 3
+			FEATURE_MUTE | FEATURE_VOLUME | FEATURE_AUTOMATIC_GAIN,
+#if AUDIO_CHANNELS > 4
+			FEATURE_MUTE | FEATURE_VOLUME,
+#if AUDIO_CHANNELS > 5
+			FEATURE_MUTE | FEATURE_VOLUME | FEATURE_AUTOMATIC_GAIN,
+#if AUDIO_CHANNELS > 6
+			FEATURE_MUTE | FEATURE_VOLUME,
+#if AUDIO_CHANNELS > 7
+			FEATURE_MUTE | FEATURE_VOLUME | FEATURE_AUTOMATIC_GAIN
+#endif // 7
+#endif // 6
+#endif // 5
+#endif // 4
+#endif // 3
+#endif // 2
+#endif // 1
+		},  // per-channel controls, one entry per channel
 		FeatureUnitStrIndex: NO_DESCRIPTOR_STRING
 	},
 
-	// mandatory FIXME useless output terminal.
+	// mandatory output terminal.
 	OutputTerminal: {
 		Header: {
 			Size: sizeof(USB_AudioOutputTerminal_t),
@@ -151,12 +172,12 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		TerminalID: OUTPUT_TERMINAL_ID,
 		TerminalType: TERMINAL_STREAMING,
 		AssociatedInputTerminal: 0x00,
-		SourceID: FEATURE_UNIT_ID, // source from the feature unit?
+		SourceID: FEATURE_UNIT_ID, // source from the feature unit
 		TerminalStrIndex: NO_DESCRIPTOR_STRING
 	},
 
-	// mandatory useless the audio stream interface (non-isochronous)
-	// for when the host cannot allocate isochronous bandwidth.
+	// the audio stream interface (non-isochronous)
+	// alternate 0 without endpoint (no audio available to usb host)
 	AudioStreamInterface_Alt0: {
 		Header: {
 			Size: sizeof(USB_Descriptor_Interface_t),
@@ -172,6 +193,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 	},
 
 	// mandatory actual audio stream interface (isochronous)
+	// alternate 1 with 
 	AudioStreamInterface_Alt1: {
 		Header: {
 			Size: sizeof(USB_Descriptor_Interface_t),
@@ -193,9 +215,9 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 			Type: DTYPE_AudioInterface
 		},
 		Subtype: DSUBTYPE_General,
-		TerminalLink: 0x03,  // the stream comes from the output terminal, after the feature unit
-		FrameDelay: 0,   // FIXME ? for syncing amongst other USB audio streams?
-		AudioFormat: 0x0001  // PCM format
+		TerminalLink: OUTPUT_TERMINAL_ID,  // the stream comes from the output terminal, after the feature unit
+		FrameDelay: 1,   // interface delay (p22 of Audio20 final.pdf)
+		AudioFormat: 0x0001  // 16bit PCM format
 	},
 
 	// FIXME this is where we say what the samples look like.
@@ -210,12 +232,12 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		FormatType: 0x01,  // FORMAT_TYPE_1
 		Channels: AUDIO_CHANNELS,
 		SubFrameSize: 0x02,  // 2 bytes per sample
-		BitResolution: 12,  //16, // FIXME We use 12 bits of the 2 bytes
+		BitResolution: 0x10, // We use 12 bits of the 2 bytes
 		SampleFrequencyType: (sizeof(ConfigurationDescriptor.AudioFormat.SampleFrequencies) / sizeof(AudioSampleFreq_t)),
 		// Could specify several sampling rates here.
 		// FIXME verify how this is computed: per stream, or or per channel?
 		SampleFrequencies: {
-			SAMPLE_FREQ(AUDIO_SAMPLE_FREQUENCY)
+			SAMPLE_FREQ(DEFAULT_AUDIO_SAMPLE_FREQUENCY)
 		}
 	},
 

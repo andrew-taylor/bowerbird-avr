@@ -1,0 +1,143 @@
+#include "ADC.h"
+
+
+/* Initialise the SPI interface and the ADC. */
+inline void ADC_Init(void)
+{
+	/* Turn the SPI module on. */
+	PRR0 &= ~(1 << PRSPI);
+
+	// Set the SS/SCK/MOSI pins as outputs. Note MISO must be an input.
+	DDRB |= (1 << DD_SS) | (1 << DD_SCK) | (1 << DD_MOSI);
+	
+	// FIXME debug turn on OC1A output pin so we can see it on the CRO
+	TCCR1A |= (1 << COM1A0);
+	DDRB |= (1 << DD_OC1A);
+
+	// set the slave select high (off), and set slave input high (MyUSB & AVR sample code do this)
+	// AVR sample code also sets the clock and output pins high, so I'm doing that too.
+	PORTB |= (1 << DD_SS) | (1 << DD_SCK) | (1 << DD_MOSI) | (1 << DD_MISO);
+
+	/* Configure the SPI component: enable, master, clk/2 (bits 1,0 == 00)
+	* SPIE: enable SPI interrupts
+	* CPOL: clock rests high (leading edge falling)
+	* CPHA: 0, leading edge RX (Sample), trailing edge TX (Setup).
+	* DORD: 0, MSB first.
+	*/
+	SPCR = ((1 << SPE) | (1 << MSTR) | (1 << CPOL));
+	SPSR = (1 << SPI2X);
+
+	/* Perform a dummy conversion. p17, Fig 11 of the datasheet. */
+	SPI_SendWord(0xFFFF);
+}
+
+
+/* The ADC transactions are 16 bits long. This takes care of the
+ * SS-bar (chip select) line.
+ */
+uint16_t SPI_SendWord(const uint16_t Word)
+{
+	uint16_t rxData;
+
+	// Enable SS (chip select). Active low.
+	PORTB &= ~(1 << DD_SS);
+
+	// send MS byte of given data
+	rxData = (SPI_SendByte((Word >> 8) & 0x00FF)) << 8;
+	// send LS byte of given data
+	rxData |= (SPI_SendByte(Word & 0x00FF));
+
+	// Set SS (chip select)
+	PORTB |= (1 << DD_SS);
+
+	// return the received data
+	return rxData;
+}
+
+int16_t ADC_ReadSampleAndSetNextAddr2(const uint8_t addr)
+{
+	/* Drop the leading 0 and the three address bits, retaining the 12-bit sample. */
+	/* FIXME verify: the USB spec wants the significant bits left-aligned, formats doc 2.2.2 p9. */
+	return ((int16_t)SPI_SendWord(ADC_CR_VAL | ADC_ADDR(addr))) << 4;
+}
+
+
+// reimplemented in assembly
+int16_t ADC_ReadSampleAndSetNextAddr(const uint8_t address)
+{
+	int16_t ret_val;
+
+	asm volatile(
+// 			"/* invert PORTC so we can observe when this is called */\n\t"
+// 			"in		r16,		%[portc]\n\t"
+// 			"com	r16\n\t"
+// 			"out	%[portc],	r16\n\t"
+			 "/* save register 16 */\n\t"
+			"mov	__tmp_reg__, r16\n\t"
+			"/* enable nSS (chip select) DD_SS(0) pin on PORTB */\n\t"
+// 			"cbi	%[portb],		%[nCS]\n\t"
+			"cbi	%[portb],		0\n\t"
+			"/* load MSB of word to send to ADC */\n\t"
+			"mov	r16,		%[address]\n\t"
+			"andi	r16,		0x07\n\t"
+			"lsl	r16\n\t"
+			"lsl	r16\n\t"
+			"or		r16,		%[ADC_CR_VAL_MSB]\n\t"
+			"/* write the MSB to the SPI data register (SPDR) */\n\t"
+// 			"sts	%[spdr],	r16\n\t"
+			"sts	0x4E,		r16\n\t"
+			"/* wait for interrupt flag (SPIF pin in SPSR) to be set (when data is ready) */\n"
+		"msloop:\n\t"
+// 			"lds	r16,		%[spsr]\n\t"
+			"lds	r16,		0x4D\n\t"
+// 			"out	%[portc],	r16\n\t"
+// 			"sbrs	r16,		%[spif]\n\t"
+			"sbrs	r16,		7\n\t"
+			"rjmp	msloop\n\t"
+			"/* save MSB of return value (from SPDR) */\n\t"
+// 			"lds	%B0,		%[spdr]\n\t"
+			"lds	%B0,		0x4E\n\t"
+			"/* shift 4x to the left, discarding overflow (faster to swap & mask) */\n\t"
+			"swap	%B0\n\t"
+			"andi	%B0,		0xF0\n\t"
+			"/* load LSB of word to send to ADC */\n\t"
+			"mov	r16,		%[ADC_CR_VAL_LSB]\n\t"
+			"/* write the MSB to the SPI data register (SPDR) */\n\t"
+// 			"sts	%[spdr],	r16\n\t"
+			"sts	0x4E,		r16\n\t"
+			"/* wait for interrupt flag (SPIF pin in SPSR) to be set (when data is ready) */\n"
+		"lsloop:\n\t"
+// 			"lds	r16,		%[spsr]\n\t"
+			"lds	r16,		0x4D\n\t"
+// 			"out	%[portc],	r16\n\t"
+// 			"sbrs	r16,		%[spif]\n\t"
+			"sbrs	r16,		7\n\t"
+			"rjmp	lsloop\n\t"
+			"/* save LSB of return value (from SPDR) */\n\t"
+// 			"lds	%A0,		%[spdr]\n\t"
+			"lds	%A0,		0X4E\n\t"
+			"/* disable nSS (chip select) DD_SS(0) pin on PORTB */\n\t"
+// 			"sbi	%[portb],		%[nCS]\n\t"
+			"sbi	%[portb],		0\n\t"
+			"/* shift 4x to the left, with overflow going into MSB */\n\t"
+			"swap	%A0\n\t"
+			"mov	r16,		%A0\n\t"
+			"andi	%A0,		0xF0\n\t"
+			"andi	r16,		0x0F\n\t"
+			"or		%B0,		r16\n\t"
+			"/* restore register 16 */\n\t"
+			"mov	r16,		__tmp_reg__\n\t"
+	: "=&r" (ret_val)
+	: [address] "r" (address)
+			, [ADC_CR_VAL_MSB] "r" ((ADC_CR_VAL & 0xFF00) >> 8)
+			, [ADC_CR_VAL_LSB] "r" (ADC_CR_VAL & 0xFF)
+			, [portb] "I" (_SFR_IO_ADDR(PORTB))
+// 			, [portc] "I" (_SFR_IO_ADDR(PORTC))
+// 			, [spdr] "I" (_SFR_MEM_ADDR(SPDR))
+// 			, [spsr] "I" (_SFR_MEM_ADDR(SPSR))
+// 			, [spif] "I" ((SPIF))
+// 			, [nCS] "I" ((DD_SS))
+		);
+	
+	return ret_val;
+}

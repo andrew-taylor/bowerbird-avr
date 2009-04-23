@@ -32,8 +32,8 @@
 #define _DESCRIPTORS_H_
 
 /* Includes: */
+#include "Common.h"
 #include <MyUSB/Drivers/USB/USB.h>
-
 #include <avr/pgmspace.h>
 
 /* Macros: */
@@ -96,16 +96,7 @@
 #define AUDIO_STREAM_EPNUM          1
 #define AUDIO_STREAM_EPSIZE         ENDPOINT_MAX_SIZE
 
-// FIXME This can't get too small, otherwise the 8-bit timer isn't fat enough.
-//#define AUDIO_SAMPLE_FREQUENCY      21170
-#define AUDIO_SAMPLE_FREQUENCY      62500
-
-// 8 audio streams and a square wave.
-// #define AUDIO_CHANNELS 9
-#define AUDIO_CHANNELS 2
-
 // Terminal IDs.
-
 #define INPUT_TERMINAL_ID  0x01
 #define FEATURE_UNIT_ID    0x02
 #define OUTPUT_TERMINAL_ID 0x03

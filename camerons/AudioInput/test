@@ -1,0 +1,21 @@
+#!/bin/bash
+
+FILE="test.wav"
+CHANNELS=`amixer -c 1 | grep 'Capture channels'|tr '-' '\n'|wc -l`
+DEFAULT_ARGS="-v -Dplughw:1,0 $FILE -c $CHANNELS -I"
+
+if [ ¨$1¨ == ¨-m¨ ]
+then
+	amixer -c 1 sset Mic,0 100% cap
+	shift
+fi
+
+rm $FILE.*
+
+arecord $DEFAULT_ARGS $@ 2>&1 | egrep '(^[PS]| format|  rate|bits)'
+
+for i in `seq 0 $(($CHANNELS-1))`
+do
+	echo Channel $i
+	aplay $FILE.$i
+done

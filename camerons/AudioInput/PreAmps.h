@@ -27,7 +27,7 @@
  * API: number them 0-7, in pairs, i.e. (0, 1) have the same input mic. */
 
 #define RDAC_TWI_ADDR(addr) (0x58 | (addr & 0x06))
-#define RDAC_1_OR_3(addr) ((addr) & 0x1 ? 0x1 : 0x3)
+#define RDAC_1_OR_3(addr) ((addr) & 0x1 ? 0x3 : 0x1)
 
 /* **************************************** */
 
@@ -93,17 +93,17 @@ static inline int8_t TWI_send_start(void)
  *
  * Returns -1 on failure (note the return type).
  */
-static inline int16_t PreAmps_get(const uint8_t addr)
+static inline int16_t PreAmps_get(const uint8_t addr, uint8_t *value)
 {
   /* This is pretty complicated. We need to do an "RDAC Random Read",
    * Figure 29 (p17) on the datasheet.
    */
 
-  uint16_t RDAC_val;
+  uint16_t return_code;
   uint8_t twsr;
 
   if(TWI_send_start() != -1) {
-    RDAC_val = 0x0100;
+    return_code = 0x0100;
     goto error;
   }
 
@@ -113,7 +113,7 @@ static inline int16_t PreAmps_get(const uint8_t addr)
   twsr = TW_WAIT_INT();
 
   if(twsr != TW_MT_SLA_ACK) {
-    RDAC_val = 0x2000 | twsr;
+    return_code = 0x0200 | twsr;
     goto error;
   }
 
@@ -122,13 +122,13 @@ static inline int16_t PreAmps_get(const uint8_t addr)
   TWCR = (1 << TWINT) | (1 << TWEN);
   twsr = TW_WAIT_INT();
   if(twsr != TW_MT_DATA_ACK) {
-    RDAC_val = 0x0300 | twsr;
+    return_code = 0x0300 | twsr;
     goto error;
   }
 
   // "Repeated START" the bus, aborting the write operation.
   if(TWI_send_start() != -1) {
-    RDAC_val = 0x0400 | twsr;
+    return_code = 0x0400 | twsr;
     goto error;
   }
 
@@ -138,7 +138,7 @@ static inline int16_t PreAmps_get(const uint8_t addr)
   twsr = TW_WAIT_INT();
 
   if(twsr != TW_MR_SLA_ACK) {
-    RDAC_val = 0x0500 | twsr;
+    return_code = 0x0500 | twsr;
     goto error;
   }
 
@@ -146,10 +146,11 @@ static inline int16_t PreAmps_get(const uint8_t addr)
   TWCR = (1 << TWINT) | (1 << TWEN);
   twsr = TW_WAIT_INT();
   // *NOTE* Invert the result.
-  RDAC_val = TWDR;
+  *value = ~TWDR;
+  return_code = 0;
 
   if(twsr != TW_MR_DATA_NACK) {
-    RDAC_val = 0x0600 | twsr;
+    return_code = 0x0600 | twsr;
     goto error;
   }
 
@@ -157,7 +158,7 @@ static inline int16_t PreAmps_get(const uint8_t addr)
 
   // Send STOP condition
   TWCR = (1 << TWINT) | (1 << TWSTO) | (1 << TWEN);
-  return RDAC_val;
+  return return_code;
 }
 
 /* Set a value for a given preamp.
@@ -198,7 +199,7 @@ static inline int16_t PreAmps_set(const uint8_t addr, const uint8_t val)
 
   // Write to the RDAC's wiper register.
   // *NOTE* Invert the value.
-  TWDR = val;
+  TWDR = ~val;
   TWCR = (1 << TWINT) | (1 << TWEN);
   twsr = TW_WAIT_INT();
   if(twsr != TW_MT_DATA_ACK) {

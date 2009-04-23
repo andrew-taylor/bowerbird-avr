@@ -1,5 +1,9 @@
 #!/bin/sh
 
-dfu-programmer at90usb647 erase
+while ! dfu-programmer at90usb647 erase
+do
+	echo Please reboot board into program mode
+	read dummy
+done
 dfu-programmer at90usb647 flash AudioInput.hex
 dfu-programmer at90usb647 start
