@@ -39,7 +39,7 @@
 
 #include <MyUSB/Version.h>                      // Library Version Information
 #include <MyUSB/Drivers/USB/USB.h>              // USB Functionality
-#include <MyUSB/Scheduler/Scheduler.h>          // Simple scheduler for task management
+#include <MyUSB/Drivers/USB/LowLevel/DevChapter9.h>
 
 /* Audio Device Class control requests for USB Audio 1.0. */
 #define AUDIO_REQ_TYPE_Get   0xA1

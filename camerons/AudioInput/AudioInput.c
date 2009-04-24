@@ -55,11 +55,6 @@
 #define PREAMP_MAXIMUM_SETPOINT ((uint8_t)0xFF)
 
 
-/* Scheduler Task List */
-TASK_LIST {
-	{ Task: USB_USBTask, TaskStatus: TASK_STOP },
-	{ Task: USB_Audio_Task       , TaskStatus: TASK_STOP },
-};
 
 // sampling frequency for all channels
 int16_t audio_sampling_frequency;
@@ -102,35 +97,44 @@ int main(void)
 	// read all the volume values from the digital pots
 	Volumes_Init();
 
-	/* Initialize Scheduler so that it can be used */
-	Scheduler_Init();
-
 	/* Initialize USB Subsystem */
 	USB_Init();
 	
+	DDRA = 0xFF;
 	DDRC = 0xFF;
-// 	asm ("loop: in __tmp_reg__, %[portc]\n\tcom __tmp_reg__\n\tout %[portc], __tmp_reg__\n\trjmp loop" : 
-// 		: [portc] "I" (_SFR_IO_ADDR(PORTC)));
 // 	while(1) {
 // 		ADC_ReadSampleAndSetNextAddr(0);
 // 	}
 
-	/* Scheduling - routine never returns, so put this last in the main function */
-	Scheduler_Start();
+	// run the background task (audio sampling done by interrupt)
+	while (1) {
+		if (USB_IsConnected) {
+			uint8_t PrevEndpoint = Endpoint_GetCurrentEndpoint();
+	
+			Endpoint_SelectEndpoint(ENDPOINT_CONTROLEP);
+	
+			if (Endpoint_IsSetupReceived())
+				USB_Device_ProcessControlPacket();
+	
+			Endpoint_SelectEndpoint(PrevEndpoint);
+		}
+	}
 }
 
 
 EVENT_HANDLER(USB_Connect)
 {
-	/* Start USB management task */
-	Scheduler_SetTaskMode(USB_USBTask, TASK_RUN);
+	// no op
 }
 
 
 EVENT_HANDLER(USB_Disconnect)
 {
 	/* Stop running audio and USB management tasks */
-	Scheduler_SetTaskMode(USB_USBTask, TASK_STOP);
+// 	Scheduler_SetTaskMode(USB_USBTask, TASK_STOP);
+
+	/* Stop the sample reload timer */
+	StopSamplingTimer();
 }
 
 
@@ -199,16 +203,10 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 
 					/* Sample reload timer initialization */
 					InitialiseAndStartSamplingTimer(audio_sampling_frequency);
-
-					/* Start audio task */
-					Scheduler_SetTaskMode(USB_Audio_Task, TASK_RUN);
 				}
 				else {
-					/* Stop audio task */
-					Scheduler_SetTaskMode(USB_Audio_Task, TASK_STOP);
-				
 					/* Stop the sample reload timer */
-					TCCR1B = 0;
+					StopSamplingTimer();
 				}
 
 				/* Handshake the request */
@@ -399,8 +397,9 @@ void ProcessAutomaticGainRequest(const uint8_t bRequest, const uint8_t bmRequest
  *
  * Glitches: see audio formats doc, sec 2.2.1, p8, 2.2.4, p9.
  */
-TASK(USB_Audio_Task)
+ISR(TIMER1_COMPA_vect, ISR_BLOCK)
 {
+	PORTC = 0xFF;
 	/* Save the current endpoint, restore it on exit. */
 	uint8_t PrevEndpoint = Endpoint_GetCurrentEndpoint();
 
@@ -408,12 +407,7 @@ TASK(USB_Audio_Task)
 	Endpoint_SelectEndpoint(AUDIO_STREAM_EPNUM);
 
 	/* Check if the current endpoint can be read from (contains a packet) */
-	if (Endpoint_ReadWriteAllowed())
-	{
-		/* Wait until next audio sample should be processed 
-		 * (when the timer has gone off) */
-		while (!(TIFR1 & (1 << OCF1A)));
-		
+	if (Endpoint_ReadWriteAllowed()) {
 		for (int i = 1; i < AUDIO_CHANNELS; i++) {
 // 			if (!channel_mute[i]) {
 				// USB Spec, "Frmts20 final.pdf" p16: left-justify the data.
@@ -432,12 +426,10 @@ TASK(USB_Audio_Task)
 			/* Send the full packet to the host */
 			Endpoint_ClearCurrentBank();
 		}
-
-		// reset the interrupt flag
-		TIFR1 |= (1 << OCF1A);
 	}
 
 	Endpoint_SelectEndpoint(PrevEndpoint);
+	PORTC = 0;
 }
 
 
@@ -448,9 +440,12 @@ void InitialiseAndStartSamplingTimer(int16_t sampling_frequency_khz)
 	// disable interrupts to prevent race conditions with 16bit registers
 	ucSREG = SREG;
 	cli();
+
 	TCCR1B  = (1 << WGM12)  // Clear-timer-on-compare-match-OCR1A (CTC) mode
 			| (1 << CS10);  // Full FCPU speed
 	OCR1A   = (uint16_t)(F_CPU_KHZ / sampling_frequency_khz);
+	TIMSK1 |= (1 << OCIE1A); // Enable timer interrupt
+
 	// restore status register (will re-enable interrupts if the were enabled)
 	SREG = ucSREG;
 }
@@ -458,6 +453,7 @@ void InitialiseAndStartSamplingTimer(int16_t sampling_frequency_khz)
 
 void StopSamplingTimer(void)
 {
+	TIMSK1 &= ~(1 << OCIE1A); // Disable timer interrupt
 	TCCR1B &= ~(1 << CS10) & ~(1 << CS11) & ~(1 << CS12);
 }
 

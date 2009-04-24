@@ -9,7 +9,7 @@
 
 // the default sampling frequency for all the microphones
 // FIXME add preprocessor check to ensure frequency will work
-#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      42000
+#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      46000
 #define DEFAULT_AUDIO_SAMPLE_FREQUENCY_KHZ	(DEFAULT_AUDIO_SAMPLE_FREQUENCY / 1000)
 
 // 8 audio streams
