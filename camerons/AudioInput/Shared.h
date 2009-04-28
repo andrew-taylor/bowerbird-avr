@@ -29,6 +29,17 @@
 #define ENDPOINT_MAX_SIZE                       64
 #endif
 
+
+/** Copied from kernel source ./sound/usb/usbaudio.h
+/* cs endpoint attributes */
+#define EP_CS_ATTR_SAMPLE_RATE		0x01
+#define EP_CS_ATTR_PITCH_CONTROL	0x02
+#define EP_CS_ATTR_FILL_MAX		0x80
+/* Endpoint Control Selectors */
+#define SAMPLING_FREQ_CONTROL      0x01
+#define PITCH_CONTROL              0x02
+
+
 /**
  * Global register variables.
  */
@@ -46,25 +57,19 @@
 #define LOWEST_AUDIO_SAMPLE_FREQUENCY		1000
 #define HIGHEST_AUDIO_SAMPLE_FREQUENCY		100000
 #define DEFAULT_AUDIO_SAMPLE_FREQUENCY      42000
-//FIXME delete this
-#define DEFAULT_AUDIO_SAMPLE_FREQUENCY_KHZ	(DEFAULT_AUDIO_SAMPLE_FREQUENCY / 1000)
 
 /** 8 audio streams */
 #define AUDIO_CHANNELS	1
 
 /** sample size in bytes, which is sizeof(uint16_t) = 2, but we can't put the
- * calculation into the code because we need in assembly, which can't handle
- * stdint.h which is the file that defines uint16_t (because of the typedefs)
+ * calculation into the code because we need it in assembly, which can't handle
+ * the file (stdint.h) that defines uint16_t because of the typedefs in it.
  */
 #define SAMPLE_SIZE		2
 #define AUDIO_STREAM_FULL_THRESHOLD (AUDIO_STREAM_EPSIZE - (AUDIO_CHANNELS * SAMPLE_SIZE))
 	
 #define AUDIO_STREAM_EPNUM          1
 #define AUDIO_STREAM_EPSIZE         ENDPOINT_MAX_SIZE
-
-// convert to kHz so it can fit into 16 bits
-// FIXME delete this
-#define F_CPU_KHZ (F_CPU / 1000)
 
 #define TRUE          1
 #define FALSE         0

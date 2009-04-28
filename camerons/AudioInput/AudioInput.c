@@ -53,18 +53,30 @@
 #include <MyUSB/Drivers/USB/USB.h>              // USB Functionality
 #include <MyUSB/Drivers/USB/LowLevel/DevChapter9.h>
 
-
+/* digital pot values used to calculate gains */
 #define DIGITAL_POT_RESISTANCE_BASE 75
 #define DIGITAL_POT_RESISTANCE_MAX 100000
 #define PREAMP_INPUT_RESISTANCE 1000
 #define PREAMP_MINIMUM_SETPOINT ((uint8_t)3)
-//((PREAMP_INPUT_RESISTANCE - DIGITAL_POT_RESISTANCE_BASE) * 0xFF / DIGITAL_POT_RESISTANCE_MAX))
+//FIXME should be calculated but this calc doesn't work
+// #define PREAMP_MINIMUM_SETPOINT ((PREAMP_INPUT_RESISTANCE - DIGITAL_POT_RESISTANCE_BASE) * 0xFF / DIGITAL_POT_RESISTANCE_MAX))
 #define PREAMP_MAXIMUM_SETPOINT ((uint8_t)0xFF)
 
+/* Event Handlers: */
+HANDLES_EVENT(USB_Connect);
+HANDLES_EVENT(USB_Disconnect);
+HANDLES_EVENT(USB_ConfigurationChanged);
+HANDLES_EVENT(USB_Suspend);
+HANDLES_EVENT(USB_UnhandledControlPacket);
 
 
+
+// FIXME put all global variables into a struct
+// (makes it faster to reference them)
 // sampling frequency for all channels
-int16_t audio_sampling_frequency;
+uint32_t current_audio_sampling_frequency;
+// this value is used to delay update until next recording starts
+uint32_t next_audio_sampling_frequency;
 // bool array of whether channels are muted
 uint8_t channel_mute[AUDIO_CHANNELS];
 // channel gains in db
@@ -74,18 +86,20 @@ uint8_t channel_automatic_gain[AUDIO_CHANNELS];
 
 
 // forward declarations
-void InitialiseAndStartSamplingTimer(int16_t sampling_frequency);
+void InitialiseAndStartSamplingTimer(uint32_t sampling_frequency);
 void StopSamplingTimer(void);
 uint8_t Volumes_Init(void);
 static inline int16_t ConvertByteToVolume(uint8_t byte);
 static inline uint8_t ConvertVolumeToByte(int16_t volume);
-void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType, const uint8_t channelNumber);
-void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType, const uint8_t channelNumber);
-void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType, const uint8_t channelNumber);
+void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
+void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
+void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
+void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType);
 static inline void SendNAK(void);
 
 
-int main(void)
+void main(void) __attribute__((noreturn));
+void main(void)
 {
 	/* Disable watchdog if enabled by bootloader/fuses */
 	MCUSR &= ~(1 << WDRF);
@@ -99,7 +113,7 @@ int main(void)
 	PreAmps_Init();
 
 	// set the default sampling frequency
-	audio_sampling_frequency = DEFAULT_AUDIO_SAMPLE_FREQUENCY_KHZ;
+	next_audio_sampling_frequency = DEFAULT_AUDIO_SAMPLE_FREQUENCY;
 	
 	// read all the volume values from the digital pots
 	Volumes_Init();
@@ -107,11 +121,8 @@ int main(void)
 	/* Initialize USB Subsystem */
 	USB_Init();
 	
-	DDRA = 0xFF;
+	// FIXME hack enable portc for debugging
 	DDRC = 0xFF;
-// 	while(1) {
-// 		ADC_ReadSampleAndSetNextAddr(0);
-// 	}
 
 	// run the background task (audio sampling done by interrupt)
 	while (1) {
@@ -188,28 +199,33 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 			case FEATURE_AUTOMATIC_GAIN:
 				ProcessAutomaticGainRequest(bRequest, bmRequestType, channelNumber);
 				break;
+			case SAMPLING_FREQ_CONTROL:
+				ProcessSamplingFrequencyRequest(bRequest, bmRequestType);
+				break;
 			default:
 				SendNAK();
 				return;
 		}
 	}
-	else if (bmRequestType == (REQDIR_HOSTTODEVICE | REQTYPE_STANDARD | REQREC_INTERFACE)) {
+	else if (bmRequestType ==
+			(REQDIR_HOSTTODEVICE | REQTYPE_STANDARD | REQREC_INTERFACE)) {
 		switch (bRequest) {
 			case REQ_SetInterface:
 			{
 				uint16_t wValue = Endpoint_Read_Word();
 				Endpoint_ClearSetupReceived();
 
-				/* Check if the host is enabling the audio interface (setting AlternateSetting to 1) */
+				/* Check if the host is enabling the audio interface
+				 * (setting AlternateSetting to 1) */
 				if (wValue) {
-					/* Clear (do not send) the audio isochronous endpoint buffer. */
+					/* Clear the audio isochronous endpoint buffer. */
 					Endpoint_ResetFIFO(AUDIO_STREAM_EPNUM);
 
-					/* Tell the ADC we want to sample channel 0 on the next read. */
+					/* Tell the ADC to sample channel 0 on the next read. */
 					ADC_ReadSampleAndSetNextAddr(0);
 
 					/* Sample reload timer initialization */
-					InitialiseAndStartSamplingTimer(audio_sampling_frequency);
+					InitialiseAndStartSamplingTimer(next_audio_sampling_frequency);
 				}
 				else {
 					/* Stop the sample reload timer */
@@ -228,8 +244,8 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 }
 
 
-void ProcessVolumeRequest(const uint8_t bRequest, const uint8_t bmRequestType,
-		const uint8_t channelNumber)
+void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
+		uint8_t channelNumber)
 {
 	uint8_t buf;
 	int16_t value;
@@ -254,30 +270,25 @@ void ProcessVolumeRequest(const uint8_t bRequest, const uint8_t bmRequestType,
 					}
  					channel_volume[channelNumber - 1] = ConvertByteToVolume(buf);
 					value = channel_volume[channelNumber - 1];
-					Endpoint_ClearSetupReceived();
-					Endpoint_Write_Control_Stream(&value, sizeof(value));
-					Endpoint_ClearSetupOUT();
-					return;
+					break;
 				case AUDIO_REQ_GET_Min:
 					value = ConvertByteToVolume(PREAMP_MINIMUM_SETPOINT);
-					Endpoint_ClearSetupReceived();
-					Endpoint_Write_Control_Stream(&value, sizeof(value));
-					Endpoint_ClearSetupOUT();
-					return;
+					break;
 				case AUDIO_REQ_GET_Max:
 					value = ConvertByteToVolume(PREAMP_MAXIMUM_SETPOINT);
-					Endpoint_ClearSetupReceived();
-					Endpoint_Write_Control_Stream(&value, sizeof(value));
-					Endpoint_ClearSetupOUT();
-					return;
+					break;
 				case AUDIO_REQ_GET_Res:
 					value = 1;
-					Endpoint_ClearSetupReceived();
-					Endpoint_Write_Control_Stream(&value, sizeof(value));
-					Endpoint_ClearSetupOUT();
+					break;
+				default:
+					// FIXME send NAK?
+					SendNAK();
 					return;
 			}
-			break;
+			Endpoint_ClearSetupReceived();
+			Endpoint_Write_Control_Stream(&value, sizeof(value));
+			Endpoint_ClearSetupOUT();
+			return;
 
 		case AUDIO_REQ_TYPE_Set:
 			if (bRequest == AUDIO_REQ_SET_Cur) {
@@ -297,14 +308,16 @@ void ProcessVolumeRequest(const uint8_t bRequest, const uint8_t bmRequestType,
 			break;
 	}
 
-	// FIXME send NACK?
+	// FIXME send NAK?
 	SendNAK();
 }
 
 
-void ProcessMuteRequest(const uint8_t bRequest, const uint8_t bmRequestType,
-		const uint8_t channelNumber)
+void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType,
+		uint8_t channelNumber)
 {
+	uint8_t muted;
+	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
 	if (channelNumber == 0 || channelNumber > AUDIO_CHANNELS) {
@@ -316,7 +329,7 @@ void ProcessMuteRequest(const uint8_t bRequest, const uint8_t bmRequestType,
 	{
 		case AUDIO_REQ_TYPE_Get:
 			if (bRequest == AUDIO_REQ_GET_Cur) {
-				uint8_t muted = channel_mute[channelNumber - 1];
+				muted = channel_mute[channelNumber - 1];
 				Endpoint_ClearSetupReceived();
 				Endpoint_Write_Control_Stream(&muted, sizeof(muted));
 				Endpoint_ClearSetupOUT();
@@ -326,7 +339,6 @@ void ProcessMuteRequest(const uint8_t bRequest, const uint8_t bmRequestType,
 		case AUDIO_REQ_TYPE_Set:
 			if (bRequest == AUDIO_REQ_SET_Cur) {
 				/* A request for the current setting of a particular channel's input gain. */
-				uint8_t muted;
 				Endpoint_ClearSetupReceived();
 				Endpoint_Read_Control_Stream(&muted, sizeof(muted));
 				Endpoint_ClearSetupIN();
@@ -338,14 +350,16 @@ void ProcessMuteRequest(const uint8_t bRequest, const uint8_t bmRequestType,
 			break;
 	}
 
-	// FIXME send nak?
+	// FIXME send NAK?
 	SendNAK();
 }
 
 
-void ProcessAutomaticGainRequest(const uint8_t bRequest, const uint8_t bmRequestType,
-		const uint8_t channelNumber)
+void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType,
+		uint8_t channelNumber)
 {
+	uint8_t auto_gain;
+	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
 	if (channelNumber == 0 || channelNumber > AUDIO_CHANNELS) {
@@ -357,7 +371,7 @@ void ProcessAutomaticGainRequest(const uint8_t bRequest, const uint8_t bmRequest
 	{
 		case AUDIO_REQ_TYPE_Get:
 			if (bRequest == AUDIO_REQ_GET_Cur) {
-				uint8_t auto_gain = channel_automatic_gain[channelNumber - 1];
+				auto_gain = channel_automatic_gain[channelNumber - 1];
 				Endpoint_ClearSetupReceived();
 				Endpoint_Write_Control_Stream(&auto_gain, sizeof(auto_gain));
 				Endpoint_ClearSetupOUT();
@@ -367,7 +381,6 @@ void ProcessAutomaticGainRequest(const uint8_t bRequest, const uint8_t bmRequest
 		case AUDIO_REQ_TYPE_Set:
 			if (bRequest == AUDIO_REQ_SET_Cur) {
 				/* A request for the current setting of a particular channel's input gain. */
-				uint8_t auto_gain;
 				Endpoint_ClearSetupReceived();
 				Endpoint_Read_Control_Stream(&auto_gain, sizeof(auto_gain));
 				Endpoint_ClearSetupIN();
@@ -379,7 +392,65 @@ void ProcessAutomaticGainRequest(const uint8_t bRequest, const uint8_t bmRequest
 			break;
 	}
 
-	// FIXME send nak?
+	// FIXME send NAK?
+	SendNAK();
+}
+
+
+void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
+{
+	uint8_t freq_high_byte;
+	int16_t freq_low_word;
+	
+	switch (bmRequestType)
+	{
+		case AUDIO_REQ_TYPE_Get:
+			switch (bRequest)
+			{
+				case AUDIO_REQ_GET_Cur:
+					freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(current_audio_sampling_frequency);
+					freq_low_word = SAMPLE_FREQ_LOW_WORD(current_audio_sampling_frequency);
+					break;
+				case AUDIO_REQ_GET_Min:
+					freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(LOWEST_AUDIO_SAMPLE_FREQUENCY);
+					freq_low_word = SAMPLE_FREQ_LOW_WORD(LOWEST_AUDIO_SAMPLE_FREQUENCY);
+					break;
+				case AUDIO_REQ_GET_Max:
+					freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(HIGHEST_AUDIO_SAMPLE_FREQUENCY);
+					freq_low_word = SAMPLE_FREQ_LOW_WORD(HIGHEST_AUDIO_SAMPLE_FREQUENCY);
+					break;
+				case AUDIO_REQ_GET_Res:
+					freq_high_byte = 0;
+					freq_low_word = 1;
+					break;
+				default:
+					// FIXME send NAK?
+					SendNAK();
+					return;
+			}
+			Endpoint_ClearSetupReceived();
+			// FIXME check this is correct order to send the three bytes
+			Endpoint_Write_Control_Stream(&freq_low_word, sizeof(freq_low_word));
+			Endpoint_Write_Control_Stream(&freq_high_byte, sizeof(freq_high_byte));
+			Endpoint_ClearSetupOUT();
+			return;
+
+		case AUDIO_REQ_TYPE_Set:
+			if (bRequest == AUDIO_REQ_SET_Cur) {
+				/* A request for the current setting of a particular channel's input gain. */
+				Endpoint_ClearSetupReceived();
+				freq_low_word = Endpoint_Read_Word();
+				freq_high_byte = Endpoint_Read_Byte();
+				Endpoint_ClearSetupIN();
+
+				// update the sampling frequency for next recording
+				next_audio_sampling_frequency = ((uint32_t)freq_high_byte << 16) & freq_low_word;
+				return;
+			}
+			break;
+	}
+
+	// FIXME send NAK?
 	SendNAK();
 }
 
@@ -404,6 +475,7 @@ void ProcessAutomaticGainRequest(const uint8_t bRequest, const uint8_t bmRequest
  *
  * Glitches: see audio formats doc, sec 2.2.1, p8, 2.2.4, p9.
  */
+// void c_isr(void)
 ISR(TIMER1_COMPA_vect, ISR_BLOCK)
 {
 	PORTC = 0xFF;
@@ -416,20 +488,22 @@ ISR(TIMER1_COMPA_vect, ISR_BLOCK)
 	/* Check if the current endpoint can be read from (contains a packet) */
 	if (Endpoint_ReadWriteAllowed()) {
 		for (int i = 1; i < AUDIO_CHANNELS; i++) {
-// 			if (!channel_mute[i]) {
+ 			if (channel_mute[i]) {
+				Endpoint_Write_Word(0);
+			}
+			else {
 				// USB Spec, "Frmts20 final.pdf" p16: left-justify the data.
 				// i.e. for 12 significant bits, shift right 4, have four 0 LSBs.
 				// Note we have to get the sign bit right.
 				Endpoint_Write_Word(ADC_ReadSampleAndSetNextAddr(i));
-// 			}
+ 			}
 		}
 
 		/* Read the sample for the last mic channel and set it up to read
-			* from channel 0 next time around. */
+		 * from channel 0 next time around. */
 		Endpoint_Write_Word(ADC_ReadSampleAndSetNextAddr(0));
 
-		if (Endpoint_BytesInEndpoint() 
-					 > AUDIO_STREAM_EPSIZE - (AUDIO_CHANNELS * sizeof(uint16_t))) {
+		if (Endpoint_BytesInEndpoint() > AUDIO_STREAM_FULL_THRESHOLD) {
 			/* Send the full packet to the host */
 			Endpoint_ClearCurrentBank();
 		}
@@ -440,7 +514,7 @@ ISR(TIMER1_COMPA_vect, ISR_BLOCK)
 }
 
 
-void InitialiseAndStartSamplingTimer(int16_t sampling_frequency_khz)
+void InitialiseAndStartSamplingTimer(uint32_t sampling_frequency)
 {
 	unsigned char ucSREG;
 	
@@ -450,11 +524,14 @@ void InitialiseAndStartSamplingTimer(int16_t sampling_frequency_khz)
 
 	TCCR1B  = (1 << WGM12)  // Clear-timer-on-compare-match-OCR1A (CTC) mode
 			| (1 << CS10);  // Full FCPU speed
-	OCR1A   = (uint16_t)(F_CPU_KHZ / sampling_frequency_khz);
+	OCR1A   = (uint16_t)(F_CPU / sampling_frequency);
 	TIMSK1 |= (1 << OCIE1A); // Enable timer interrupt
 
 	// restore status register (will re-enable interrupts if the were enabled)
 	SREG = ucSREG;
+
+	// save current sampling frequency so we can report it later
+	current_audio_sampling_frequency = sampling_frequency;
 }
 
 
@@ -516,5 +593,5 @@ static inline uint8_t ConvertVolumeToByte(int16_t volume)
 
 static inline void SendNAK(void)
 {
-	//FIXME send a NACK to the host
+	//FIXME send a NAK to the host
 }
