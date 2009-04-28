@@ -1,8 +1,44 @@
 #include "ADC.h"
+#include "Shared.h"
+#include <MyUSB/Drivers/USB/USB.h>
+
+
+/* Internal use only: Send a byte through the SPI interface, blocking
+ * until the transfer is complete.
+ * Note this does not fiddle with the SS-bar (chip select) line. */
+static inline uint8_t SPI_SendByte(const uint8_t Byte)
+{
+	SPDR = Byte;
+	while (!(SPSR & (1 << SPIF)));
+	return SPDR;
+}
+
+
+/* The ADC transactions are 16 bits long. This takes care of the
+ * SS-bar (chip select) line.
+ */
+uint16_t ADC_SendWord(const uint16_t Word)
+{
+	uint16_t rxData;
+
+	// Enable SS (chip select). Active low.
+	PORTB &= ~(1 << DD_SS);
+
+	// send MS byte of given data
+	rxData = (SPI_SendByte((Word >> 8) & 0x00FF)) << 8;
+	// send LS byte of given data
+	rxData |= (SPI_SendByte(Word & 0x00FF));
+
+	// Set SS (chip select)
+	PORTB |= (1 << DD_SS);
+
+	// return the received data
+	return rxData;
+}
 
 
 /* Initialise the SPI interface and the ADC. */
-inline void ADC_Init(void)
+void ADC_Init(void)
 {
 	/* Turn the SPI module on. */
 	PRR0 &= ~(1 << PRSPI);
@@ -28,39 +64,16 @@ inline void ADC_Init(void)
 	SPSR = (1 << SPI2X);
 
 	/* Perform a dummy conversion. p17, Fig 11 of the datasheet. */
-	SPI_SendWord(0xFFFF);
+	ADC_SendWord(0xFFFF);
 }
 
-
-/* The ADC transactions are 16 bits long. This takes care of the
- * SS-bar (chip select) line.
- */
-uint16_t SPI_SendWord(const uint16_t Word)
-{
-	uint16_t rxData;
-
-	// Enable SS (chip select). Active low.
-	PORTB &= ~(1 << DD_SS);
-
-	// send MS byte of given data
-	rxData = (SPI_SendByte((Word >> 8) & 0x00FF)) << 8;
-	// send LS byte of given data
-	rxData |= (SPI_SendByte(Word & 0x00FF));
-
-	// Set SS (chip select)
-	PORTB |= (1 << DD_SS);
-
-	// return the received data
-	return rxData;
-}
 
 int16_t ADC_ReadSampleAndSetNextAddr2(const uint8_t addr)
 {
 	/* Drop the leading 0 and the three address bits, retaining the 12-bit sample. */
 	/* FIXME verify: the USB spec wants the significant bits left-aligned, formats doc 2.2.2 p9. */
-	return ((int16_t)SPI_SendWord(ADC_CR_VAL | ADC_ADDR(addr))) << 4;
+	return ((int16_t)ADC_SendWord(ADC_CR_ADDR(addr))) << 4;
 }
-
 
 // reimplemented in assembly
 int16_t ADC_ReadSampleAndSetNextAddr(const uint8_t address)
@@ -82,7 +95,7 @@ int16_t ADC_ReadSampleAndSetNextAddr(const uint8_t address)
 			"andi	r16,		0x07\n\t"
 			"lsl	r16\n\t"
 			"lsl	r16\n\t"
-			"or		r16,		%[ADC_CR_VAL_MSB]\n\t"
+			"or		r16,		%[adc_cr_msb]\n\t"
 			"/* write the MSB to the SPI data register (SPDR) */\n\t"
 // 			"sts	%[spdr],	r16\n\t"
 			"sts	0x4E,		r16\n\t"
@@ -101,7 +114,7 @@ int16_t ADC_ReadSampleAndSetNextAddr(const uint8_t address)
 			"swap	%B0\n\t"
 			"andi	%B0,		0xF0\n\t"
 			"/* load LSB of word to send to ADC */\n\t"
-			"mov	r16,		%[ADC_CR_VAL_LSB]\n\t"
+			"mov	r16,		%[adc_cr_lsb]\n\t"
 			"/* write the MSB to the SPI data register (SPDR) */\n\t"
 // 			"sts	%[spdr],	r16\n\t"
 			"sts	0x4E,		r16\n\t"
@@ -129,8 +142,8 @@ int16_t ADC_ReadSampleAndSetNextAddr(const uint8_t address)
 			"mov	r16,		__tmp_reg__\n\t"
 	: "=&r" (ret_val)
 	: [address] "r" (address)
-			, [ADC_CR_VAL_MSB] "r" ((ADC_CR_VAL & 0xFF00) >> 8)
-			, [ADC_CR_VAL_LSB] "r" (ADC_CR_VAL & 0xFF)
+			, [adc_cr_msb] "r" (ADC_CR_MSB)
+			, [adc_cr_lsb] "r" (ADC_CR_LSB)
 			, [portb] "I" (_SFR_IO_ADDR(PORTB))
 // 			, [portc] "I" (_SFR_IO_ADDR(PORTC))
 // 			, [spdr] "I" (_SFR_MEM_ADDR(SPDR))
