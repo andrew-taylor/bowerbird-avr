@@ -36,16 +36,23 @@
  Usable Speeds:      Full Speed Mode
 */
 
+/* Includes: */
+#include <avr/io.h>
+#include <avr/wdt.h>
 #include <avr/interrupt.h>
 #include <avr/power.h>
 #include <stdbool.h>
 #include <math.h>
 #include <stdlib.h>
 
-#include "Common.h"
-#include "AudioInput.h"
+#include "Descriptors.h"
 #include "ADC.h"
 #include "PreAmps.h"
+
+#include <MyUSB/Version.h>                      // Library Version Information
+#include <MyUSB/Drivers/USB/USB.h>              // USB Functionality
+#include <MyUSB/Drivers/USB/LowLevel/DevChapter9.h>
+
 
 #define DIGITAL_POT_RESISTANCE_BASE 75
 #define DIGITAL_POT_RESISTANCE_MAX 100000

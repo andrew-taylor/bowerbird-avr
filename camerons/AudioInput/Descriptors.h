@@ -32,9 +32,22 @@
 #define _DESCRIPTORS_H_
 
 /* Includes: */
-#include "Common.h"
+#include "Shared.h"
 #include <MyUSB/Drivers/USB/USB.h>
 #include <avr/pgmspace.h>
+
+
+/* Audio Device Class control requests for USB Audio 1.0. */
+#define AUDIO_REQ_TYPE_Get   0xA1
+#define AUDIO_REQ_TYPE_Set   0x21
+
+#define AUDIO_REQ_GET_Cur    0x81
+#define AUDIO_REQ_GET_Min    0x82
+#define AUDIO_REQ_GET_Max    0x83
+#define AUDIO_REQ_GET_Res    0x84
+
+#define AUDIO_REQ_SET_Cur    0x01
+
 
 /* Macros: */
 #define DTYPE_AudioInterface        0x24
@@ -92,9 +105,6 @@
 #define TERMINAL_OUT_LOWFREQ        0x0307
 
 #define SAMPLE_FREQ(x) { LowWord: ((uint32_t)x & 0x00FFFF), HighByte: (((uint32_t)x >> 16) & 0x0000FF)}
-
-#define AUDIO_STREAM_EPNUM          1
-#define AUDIO_STREAM_EPSIZE         ENDPOINT_MAX_SIZE
 
 // Terminal IDs.
 #define INPUT_TERMINAL_ID  0x01
