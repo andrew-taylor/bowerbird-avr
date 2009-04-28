@@ -98,7 +98,8 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType);
 static inline void SendNAK(void);
 
 
-void main(void) __attribute__((noreturn));
+void main(void) __ATTR_NORETURN__;
+
 void main(void)
 {
 	/* Disable watchdog if enabled by bootloader/fuses */
@@ -119,9 +120,11 @@ void main(void)
 	Volumes_Init();
 
 	/* Initialize USB Subsystem */
+	// FIXME disable USB gen vect, and poll for it in the loop below
 	USB_Init();
 	
-	// FIXME hack enable portc for debugging
+	// FIXME hack enable port a & c for debugging
+	DDRA = 0xFF;
 	DDRC = 0xFF;
 
 	// run the background task (audio sampling done by interrupt)
@@ -165,46 +168,58 @@ EVENT_HANDLER(USB_ConfigurationChanged)
 }
 
 
+// FIXME can we create more specific handlers instead of all of them in this?
 EVENT_HANDLER(USB_UnhandledControlPacket)
 {
-	static uint16_t wValue, wIndex, wLength;
+	static uint16_t recipient, wValue, wIndex, wLength;
 	static uint8_t controlSelector, channelNumber, entityID;
 
 	if ((bmRequestType & CONTROL_REQTYPE_TYPE) == REQTYPE_CLASS)
 	{
+		recipient = (bmRequestType & CONTROL_REQTYPE_RECIPIENT);
 		wValue  = Endpoint_Read_Word();
 		wIndex  = Endpoint_Read_Word();
-		wLength = Endpoint_Read_Word();
+		wLength = Endpoint_Read_Word();		
+		
+		if (recipient == REQREC_ENDPOINT) {
+			// determine the relevant control type
+			controlSelector = wValue >> 8;
 
-		/* Ensure the host is talking about the feature unit. */
-		entityID  = wIndex >> 8;
-		if (entityID != FEATURE_UNIT_ID) {
-			// FIXME confirm NAK should be sent here
-			SendNAK();
-			return;
-		}
-
-		// determine the relevant control type (mute, volume, auto-gain)
-		controlSelector = wValue >> 8;
-		// determine the channel
-		channelNumber   = wValue & 0xFF;
-
-		switch (controlSelector) {
-			case FEATURE_MUTE:
-				ProcessMuteRequest(bRequest, bmRequestType, channelNumber);
-				break;
-			case FEATURE_VOLUME:
-				ProcessVolumeRequest(bRequest, bmRequestType, channelNumber);
-				break;
-			case FEATURE_AUTOMATIC_GAIN:
-				ProcessAutomaticGainRequest(bRequest, bmRequestType, channelNumber);
-				break;
-			case SAMPLING_FREQ_CONTROL:
+			// FIXME do we need to confirm that the endpoint in wIndex is our endpoint?
+			if (controlSelector == SAMPLING_FREQ_CONTROL) {
 				ProcessSamplingFrequencyRequest(bRequest, bmRequestType);
-				break;
-			default:
-				SendNAK();
+			}
+			else {
+				// spec (Audio10.pdf p95) says we have to send stall here
+				Endpoint_StallTransaction();
 				return;
+			}
+		}	
+		else if (recipient == REQREC_INTERFACE) {
+			// get the entity id
+			entityID  = wIndex >> 8;
+			
+			if (entityID == FEATURE_UNIT_ID) {
+				// determine the relevant control type
+				controlSelector = wValue >> 8;
+				// determine the channel
+				channelNumber   = wValue & 0xFF;
+				
+				switch (controlSelector) {
+					case FEATURE_MUTE:
+						ProcessMuteRequest(bRequest, bmRequestType, channelNumber);
+						break;
+					case FEATURE_VOLUME:
+						ProcessVolumeRequest(bRequest, bmRequestType, channelNumber);
+						break;
+					case FEATURE_AUTOMATIC_GAIN:
+						ProcessAutomaticGainRequest(bRequest, bmRequestType, channelNumber);
+						break;
+					default:
+						SendNAK();
+						return;
+				}
+			}
 		}
 	}
 	else if (bmRequestType ==
@@ -257,59 +272,56 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 		return;
 	}
 
-	switch (bmRequestType)
-	{
-		case AUDIO_REQ_TYPE_Get:
-			switch (bRequest)
-			{
-				case AUDIO_REQ_GET_Cur:
-					// FIXME this will be unneccessary once the preamp code actually works
-					if (PreAmps_get(channelNumber - 1, &buf)) {
-						// use approximate half-max as fall-back if error occurs
-						buf = 0x1f;
-					}
- 					channel_volume[channelNumber - 1] = ConvertByteToVolume(buf);
-					value = channel_volume[channelNumber - 1];
-					break;
-				case AUDIO_REQ_GET_Min:
-					value = ConvertByteToVolume(PREAMP_MINIMUM_SETPOINT);
-					break;
-				case AUDIO_REQ_GET_Max:
-					value = ConvertByteToVolume(PREAMP_MAXIMUM_SETPOINT);
-					break;
-				case AUDIO_REQ_GET_Res:
-					value = 1;
-					break;
-				default:
-					// FIXME send NAK?
-					SendNAK();
-					return;
-			}
-			Endpoint_ClearSetupReceived();
-			Endpoint_Write_Control_Stream(&value, sizeof(value));
-			Endpoint_ClearSetupOUT();
-			return;
-
-		case AUDIO_REQ_TYPE_Set:
-			if (bRequest == AUDIO_REQ_SET_Cur) {
-				/* A request for the current setting of a particular channel's input gain. */
-				Endpoint_ClearSetupReceived();
-				Endpoint_Read_Control_Stream(&value, sizeof(value));
-				Endpoint_ClearSetupIN();
-
-				// cache the value
-				channel_volume[channelNumber - 1] = value;
-				// convert to a digital pot value
-				uint8_t pot_value = ConvertVolumeToByte(value);
-				// set the pot
-				PreAmps_set(channelNumber - 1, pot_value);
+	// find out if its a "get" or a "set" request
+	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
+		switch (bRequest) {
+			case AUDIO_REQ_GET_Cur:
+				// FIXME this will be unneccessary once the preamp code actually works
+				if (PreAmps_get(channelNumber - 1, &buf)) {
+					// use approximate half-max as fall-back if error occurs
+					buf = 0x1f;
+				}
+				channel_volume[channelNumber - 1] = ConvertByteToVolume(buf);
+				value = channel_volume[channelNumber - 1];
+				break;
+			case AUDIO_REQ_GET_Min:
+				value = ConvertByteToVolume(PREAMP_MINIMUM_SETPOINT);
+				break;
+			case AUDIO_REQ_GET_Max:
+				value = ConvertByteToVolume(PREAMP_MAXIMUM_SETPOINT);
+				break;
+			case AUDIO_REQ_GET_Res:
+				value = 1;
+				break;
+			default:
+				// FIXME send NAK?
+				SendNAK();
 				return;
-			}
-			break;
+		}
+		Endpoint_ClearSetupReceived();
+		Endpoint_Write_Control_Stream(&value, sizeof(value));
+		Endpoint_ClearSetupOUT();
 	}
+	else {
+		if (bRequest == AUDIO_REQ_SET_Cur) {
+			/* A request for the current setting of a particular channel's input gain. */
+			Endpoint_ClearSetupReceived();
+			Endpoint_Read_Control_Stream(&value, sizeof(value));
+			Endpoint_ClearSetupIN();
 
-	// FIXME send NAK?
-	SendNAK();
+			// cache the value
+			channel_volume[channelNumber - 1] = value;
+			// convert to a digital pot value
+			uint8_t pot_value = ConvertVolumeToByte(value);
+			// set the pot
+			PreAmps_set(channelNumber - 1, pot_value);
+			return;
+		}
+		else {
+			// FIXME send NAK?
+			SendNAK();
+		}
+	}
 }
 
 
@@ -325,29 +337,27 @@ void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType,
 		return;
 	}
 
-	switch (bmRequestType)
-	{
-		case AUDIO_REQ_TYPE_Get:
-			if (bRequest == AUDIO_REQ_GET_Cur) {
-				muted = channel_mute[channelNumber - 1];
-				Endpoint_ClearSetupReceived();
-				Endpoint_Write_Control_Stream(&muted, sizeof(muted));
-				Endpoint_ClearSetupOUT();
-				return;
-			}
-			break;
-		case AUDIO_REQ_TYPE_Set:
-			if (bRequest == AUDIO_REQ_SET_Cur) {
-				/* A request for the current setting of a particular channel's input gain. */
-				Endpoint_ClearSetupReceived();
-				Endpoint_Read_Control_Stream(&muted, sizeof(muted));
-				Endpoint_ClearSetupIN();
+	// find out if its a "get" or a "set" request
+	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
+		if (bRequest == AUDIO_REQ_GET_Cur) {
+			muted = channel_mute[channelNumber - 1];
+			Endpoint_ClearSetupReceived();
+			Endpoint_Write_Control_Stream(&muted, sizeof(muted));
+			Endpoint_ClearSetupOUT();
+			return;
+		}
+	}
+	else {
+		if (bRequest == AUDIO_REQ_SET_Cur) {
+			/* A request for the current setting of a particular channel's input gain. */
+			Endpoint_ClearSetupReceived();
+			Endpoint_Read_Control_Stream(&muted, sizeof(muted));
+			Endpoint_ClearSetupIN();
 
-				// cache the value
-				channel_mute[channelNumber - 1] = muted;
-				return;
-			}
-			break;
+			// cache the value
+			channel_mute[channelNumber - 1] = muted;
+			return;
+		}
 	}
 
 	// FIXME send NAK?
@@ -367,29 +377,27 @@ void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType,
 		return;
 	}
 
-	switch (bmRequestType)
-	{
-		case AUDIO_REQ_TYPE_Get:
-			if (bRequest == AUDIO_REQ_GET_Cur) {
-				auto_gain = channel_automatic_gain[channelNumber - 1];
-				Endpoint_ClearSetupReceived();
-				Endpoint_Write_Control_Stream(&auto_gain, sizeof(auto_gain));
-				Endpoint_ClearSetupOUT();
-				return;
-			}
-			break;
-		case AUDIO_REQ_TYPE_Set:
-			if (bRequest == AUDIO_REQ_SET_Cur) {
-				/* A request for the current setting of a particular channel's input gain. */
-				Endpoint_ClearSetupReceived();
-				Endpoint_Read_Control_Stream(&auto_gain, sizeof(auto_gain));
-				Endpoint_ClearSetupIN();
+	// find out if its a "get" or a "set" request
+	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
+		if (bRequest == AUDIO_REQ_GET_Cur) {
+			auto_gain = channel_automatic_gain[channelNumber - 1];
+			Endpoint_ClearSetupReceived();
+			Endpoint_Write_Control_Stream(&auto_gain, sizeof(auto_gain));
+			Endpoint_ClearSetupOUT();
+			return;
+		}
+	}
+	else {
+		if (bRequest == AUDIO_REQ_SET_Cur) {
+			/* A request for the current setting of a particular channel's input gain. */
+			Endpoint_ClearSetupReceived();
+			Endpoint_Read_Control_Stream(&auto_gain, sizeof(auto_gain));
+			Endpoint_ClearSetupIN();
 
-				// cache the value
-				channel_automatic_gain[channelNumber - 1] = auto_gain;
-				return;
-			}
-			break;
+			// cache the value
+			channel_automatic_gain[channelNumber - 1] = auto_gain;
+			return;
+		}
 	}
 
 	// FIXME send NAK?
@@ -401,53 +409,52 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 {
 	uint8_t freq_high_byte;
 	int16_t freq_low_word;
+	// FIXME hacked removal
+	return;
 	
-	switch (bmRequestType)
-	{
-		case AUDIO_REQ_TYPE_Get:
-			switch (bRequest)
-			{
-				case AUDIO_REQ_GET_Cur:
-					freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(current_audio_sampling_frequency);
-					freq_low_word = SAMPLE_FREQ_LOW_WORD(current_audio_sampling_frequency);
-					break;
-				case AUDIO_REQ_GET_Min:
-					freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(LOWEST_AUDIO_SAMPLE_FREQUENCY);
-					freq_low_word = SAMPLE_FREQ_LOW_WORD(LOWEST_AUDIO_SAMPLE_FREQUENCY);
-					break;
-				case AUDIO_REQ_GET_Max:
-					freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(HIGHEST_AUDIO_SAMPLE_FREQUENCY);
-					freq_low_word = SAMPLE_FREQ_LOW_WORD(HIGHEST_AUDIO_SAMPLE_FREQUENCY);
-					break;
-				case AUDIO_REQ_GET_Res:
-					freq_high_byte = 0;
-					freq_low_word = 1;
-					break;
-				default:
-					// FIXME send NAK?
-					SendNAK();
-					return;
-			}
-			Endpoint_ClearSetupReceived();
-			// FIXME check this is correct order to send the three bytes
-			Endpoint_Write_Control_Stream(&freq_low_word, sizeof(freq_low_word));
-			Endpoint_Write_Control_Stream(&freq_high_byte, sizeof(freq_high_byte));
-			Endpoint_ClearSetupOUT();
-			return;
-
-		case AUDIO_REQ_TYPE_Set:
-			if (bRequest == AUDIO_REQ_SET_Cur) {
-				/* A request for the current setting of a particular channel's input gain. */
-				Endpoint_ClearSetupReceived();
-				freq_low_word = Endpoint_Read_Word();
-				freq_high_byte = Endpoint_Read_Byte();
-				Endpoint_ClearSetupIN();
-
-				// update the sampling frequency for next recording
-				next_audio_sampling_frequency = ((uint32_t)freq_high_byte << 16) & freq_low_word;
+	// find out if its a "get" or a "set" request
+	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
+		switch (bRequest) {
+			case AUDIO_REQ_GET_Cur:
+				freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(current_audio_sampling_frequency);
+				freq_low_word = SAMPLE_FREQ_LOW_WORD(current_audio_sampling_frequency);
+				break;
+			case AUDIO_REQ_GET_Min:
+				freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(LOWEST_AUDIO_SAMPLE_FREQUENCY);
+				freq_low_word = SAMPLE_FREQ_LOW_WORD(LOWEST_AUDIO_SAMPLE_FREQUENCY);
+				break;
+			case AUDIO_REQ_GET_Max:
+				freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(HIGHEST_AUDIO_SAMPLE_FREQUENCY);
+				freq_low_word = SAMPLE_FREQ_LOW_WORD(HIGHEST_AUDIO_SAMPLE_FREQUENCY);
+				break;
+			case AUDIO_REQ_GET_Res:
+				freq_high_byte = 0;
+				freq_low_word = 1;
+				break;
+			default:
+				// FIXME send NAK?
+				SendNAK();
 				return;
-			}
-			break;
+		}
+		Endpoint_ClearSetupReceived();
+		// FIXME check this is correct order to send the three bytes
+		Endpoint_Write_Control_Stream(&freq_low_word, sizeof(freq_low_word));
+		Endpoint_Write_Control_Stream(&freq_high_byte, sizeof(freq_high_byte));
+		Endpoint_ClearSetupOUT();
+		return;
+	}
+	else {
+		if (bRequest == AUDIO_REQ_SET_Cur) {
+			/* A request for the current setting of a particular channel's input gain. */
+			Endpoint_ClearSetupReceived();
+			freq_low_word = Endpoint_Read_Word();
+			freq_high_byte = Endpoint_Read_Byte();
+			Endpoint_ClearSetupIN();
+
+			// update the sampling frequency for next recording
+			next_audio_sampling_frequency = ((uint32_t)freq_high_byte << 16) & freq_low_word;
+			return;
+		}
 	}
 
 	// FIXME send NAK?
@@ -475,43 +482,43 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
  *
  * Glitches: see audio formats doc, sec 2.2.1, p8, 2.2.4, p9.
  */
-// void c_isr(void)
-ISR(TIMER1_COMPA_vect, ISR_BLOCK)
-{
-	PORTC = 0xFF;
-	/* Save the current endpoint, restore it on exit. */
-	uint8_t PrevEndpoint = Endpoint_GetCurrentEndpoint();
-
-	/* Select the audio stream endpoint */
-	Endpoint_SelectEndpoint(AUDIO_STREAM_EPNUM);
-
-	/* Check if the current endpoint can be read from (contains a packet) */
-	if (Endpoint_ReadWriteAllowed()) {
-		for (int i = 1; i < AUDIO_CHANNELS; i++) {
- 			if (channel_mute[i]) {
-				Endpoint_Write_Word(0);
-			}
-			else {
-				// USB Spec, "Frmts20 final.pdf" p16: left-justify the data.
-				// i.e. for 12 significant bits, shift right 4, have four 0 LSBs.
-				// Note we have to get the sign bit right.
-				Endpoint_Write_Word(ADC_ReadSampleAndSetNextAddr(i));
- 			}
-		}
-
-		/* Read the sample for the last mic channel and set it up to read
-		 * from channel 0 next time around. */
-		Endpoint_Write_Word(ADC_ReadSampleAndSetNextAddr(0));
-
-		if (Endpoint_BytesInEndpoint() > AUDIO_STREAM_FULL_THRESHOLD) {
-			/* Send the full packet to the host */
-			Endpoint_ClearCurrentBank();
-		}
-	}
-
-	Endpoint_SelectEndpoint(PrevEndpoint);
-	PORTC = 0;
-}
+// ISR(TIMER1_COMPA_vect, ISR_BLOCK)
+// {
+// 	PORTA = 0xFF;
+// 	/* Save the current endpoint, restore it on exit. */
+// 	uint8_t PrevEndpoint = Endpoint_GetCurrentEndpoint();
+// 
+// 	/* Select the audio stream endpoint */
+// 	Endpoint_SelectEndpoint(AUDIO_STREAM_EPNUM);
+// 
+// 	/* Check if the current endpoint can be read from (contains a packet) */
+// 	if (Endpoint_ReadWriteAllowed()) {
+// 		int i = 0;
+// 		do {
+// 			i++;
+// 			if (i == AUDIO_CHANNELS) 
+// 				i = 0;
+// //  		if (channel_mute[i]) {
+// // 				Endpoint_Write_Word(0);
+// // 			}
+// // 			else {
+// 				// USB Spec, "Frmts20 final.pdf" p16: left-justify the data.
+// 				// i.e. for 12 significant bits, shift right 4, have four 0 LSBs.
+// 				// Note we have to get the sign bit right.
+// 				Endpoint_Write_Word(ADC_ReadSampleAndSetNextAddr(i));
+// //  		}
+// 		} while (i != 0);
+// 
+// 		if (Endpoint_BytesInEndpoint() > AUDIO_STREAM_FULL_THRESHOLD) {
+// 			PORTC = ~PORTC;
+// 			/* Send the full packet to the host */
+// 			Endpoint_ClearCurrentBank();
+// 		}
+// 	}
+// 
+// 	Endpoint_SelectEndpoint(PrevEndpoint);
+// 	PORTA = 0;
+// }
 
 
 void InitialiseAndStartSamplingTimer(uint32_t sampling_frequency)

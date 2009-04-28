@@ -31,11 +31,11 @@
 
 
 /** Copied from kernel source ./sound/usb/usbaudio.h
-/* cs endpoint attributes */
+ * cs endpoint attributes */
 #define EP_CS_ATTR_SAMPLE_RATE		0x01
 #define EP_CS_ATTR_PITCH_CONTROL	0x02
 #define EP_CS_ATTR_FILL_MAX		0x80
-/* Endpoint Control Selectors */
+/** Endpoint Control Selectors */
 #define SAMPLING_FREQ_CONTROL      0x01
 #define PITCH_CONTROL              0x02
 
@@ -44,19 +44,19 @@
  * Global register variables.
  */
 #ifdef __ASSEMBLER__
-#define sreg_save	r2
-#define usb_ep_save	r3
-#define isr_iter	r16
-#define	tmp_reg1	r17
-#define	msb_sample	r25
-#define	lsb_sample	r24
+#define usb_ep_save	r17
+#define isr_iter	r28
+#define	tmp_reg1	r24
+#define tmp_reg2	r25
+#define	msb_sample	r27
+#define	lsb_sample	r26
 #endif /* ASSEMBLER */
 
 /** the default sampling frequency for all the microphones
  * FIXME add preprocessor check to ensure frequency will work */
 #define LOWEST_AUDIO_SAMPLE_FREQUENCY		1000
 #define HIGHEST_AUDIO_SAMPLE_FREQUENCY		100000
-#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      42000
+#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      40000
 
 /** 8 audio streams */
 #define AUDIO_CHANNELS	1
@@ -66,10 +66,11 @@
  * the file (stdint.h) that defines uint16_t because of the typedefs in it.
  */
 #define SAMPLE_SIZE		2
-#define AUDIO_STREAM_FULL_THRESHOLD (AUDIO_STREAM_EPSIZE - (AUDIO_CHANNELS * SAMPLE_SIZE))
+#define AUDIO_STREAM_FULL_THRESHOLD (AUDIO_STREAM_EPSIZE - (AUDIO_CHANNELS * SAMPLE_SIZE - 1))
 	
 #define AUDIO_STREAM_EPNUM          1
 #define AUDIO_STREAM_EPSIZE         ENDPOINT_MAX_SIZE
+#define ENDPOINT_EPNUM_MASK			0b111
 
 #define TRUE          1
 #define FALSE         0

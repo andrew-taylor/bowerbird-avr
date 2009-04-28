@@ -38,8 +38,7 @@
 
 
 /* Audio Device Class control requests for USB Audio 1.0. */
-#define AUDIO_REQ_TYPE_Get   0xA1
-#define AUDIO_REQ_TYPE_Set   0x21
+#define AUDIO_REQ_TYPE_GET_MASK   0x80
 
 #define AUDIO_REQ_GET_Cur    0x81
 #define AUDIO_REQ_GET_Min    0x82

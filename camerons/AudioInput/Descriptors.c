@@ -232,7 +232,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		FormatType: 0x01,  // FORMAT_TYPE_1
 		Channels: AUDIO_CHANNELS,
 		SubFrameSize: 0x02,  // 2 bytes per sample
-		BitResolution: 0x10, // We use 12 bits of the 2 bytes
+		BitResolution: 0x0C, // We use 12 bits of the 2 bytes
 		SampleFrequencyType: (sizeof(ConfigurationDescriptor.AudioFormat.SampleFrequencies) / sizeof(AudioSampleFreq_t)),
 		// Could specify several sampling rates here.
 		// FIXME verify how this is computed: per stream, or or per channel?
@@ -241,7 +241,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		}
 	},
 
-	// The actual isocrohonous audio sample endpoint.
+	// The actual isochronous audio sample endpoint.
 	AudioEndpoint: {
 		Endpoint: {
 			Header: {
@@ -264,7 +264,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 			Type: DTYPE_AudioEndpoint
 		},
 		Subtype: DSUBTYPE_General,
-		Attributes: 0x00,
+		Attributes: 0x00, // FIXME should be EP_CS_ATTR_SAMPLE_RATE
 		LockDelayUnits: 0x02,  // FIXME reserved value for PCM streams?
 		LockDelay: 0x0000  // 0 for async streams
 	}

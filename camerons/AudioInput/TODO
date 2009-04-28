@@ -1,0 +1,3 @@
+* remove unused registers from ISR
+* convert to #defined registers
+* convert USB_Gen_vect into polled flag
