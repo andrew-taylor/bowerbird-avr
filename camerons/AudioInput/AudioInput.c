@@ -52,6 +52,7 @@
 #include <MyUSB/Version.h>                      // Library Version Information
 #include <MyUSB/Drivers/USB/USB.h>              // USB Functionality
 #include <MyUSB/Drivers/USB/LowLevel/DevChapter9.h>
+#include <MyUSB/Drivers/USB/HighLevel/USBInterrupt.h>
 
 /* digital pot values used to calculate gains */
 #define DIGITAL_POT_RESISTANCE_BASE 75
@@ -129,6 +130,12 @@ void main(void)
 
 	// run the background task (audio sampling done by interrupt)
 	while (1) {
+		// check if USB General interrupts require processing
+		while (USB_General_Interrupt_Requires_Processing()) {
+			USB_Handle_General_Interrupt();
+		}
+
+		// handle any control packets received
 		if (USB_IsConnected) {
 			uint8_t PrevEndpoint = Endpoint_GetCurrentEndpoint();
 	
@@ -496,17 +503,19 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 // 		int i = 0;
 // 		do {
 // 			i++;
-// 			if (i == AUDIO_CHANNELS) 
+// 			if (i == AUDIO_CHANNELS)
 // 				i = 0;
-// //  		if (channel_mute[i]) {
-// // 				Endpoint_Write_Word(0);
-// // 			}
-// // 			else {
+// 			if (channel_mute[i]) {
+// 				// send zero length packet (PrevEndpoint is not used)
+// // 				Endpoint_Write_Control_Stream(&PrevEndpoint, 0);
+// 				Endpoint_Write_Word(0);
+// 			}
+// 			else {
 // 				// USB Spec, "Frmts20 final.pdf" p16: left-justify the data.
 // 				// i.e. for 12 significant bits, shift right 4, have four 0 LSBs.
 // 				// Note we have to get the sign bit right.
 // 				Endpoint_Write_Word(ADC_ReadSampleAndSetNextAddr(i));
-// //  		}
+// 			}
 // 		} while (i != 0);
 // 
 // 		if (Endpoint_BytesInEndpoint() > AUDIO_STREAM_FULL_THRESHOLD) {

@@ -200,6 +200,11 @@
 		/* Function Prototypes: */
 			void USB_INT_ClearAllInterrupts(void);
 			void USB_INT_DisableAllInterrupts(void);
+			
+			/* FIXME until I can figure out how to poll the usb general interrupt flag */
+			bool USB_General_Interrupt_Requires_Processing(void);
+			void USB_Handle_General_Interrupt(void);
+
 	#endif
 	
 	/* Disable C linkage for C++ Compilers: */
