@@ -45,18 +45,17 @@
  */
 #ifdef __ASSEMBLER__
 #define usb_ep_save	r17
+#define	pair_lsb	r26
+#define	pair_msb	r27
 #define isr_iter	r28
-#define	tmp_reg1	r24
-#define tmp_reg2	r25
-#define	msb_sample	r27
-#define	lsb_sample	r26
-#endif /* ASSEMBLER */
+#define	temp_reg	r29
+#endif /* __ASSEMBLER__ */
 
 /** the default sampling frequency for all the microphones
  * FIXME add preprocessor check to ensure frequency will work */
 #define LOWEST_AUDIO_SAMPLE_FREQUENCY		1000
 #define HIGHEST_AUDIO_SAMPLE_FREQUENCY		100000
-#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      40000
+#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      16000
 
 /** 8 audio streams */
 #define AUDIO_CHANNELS	1
