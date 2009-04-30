@@ -103,6 +103,8 @@ void main(void) __ATTR_NORETURN__;
 
 void main(void)
 {
+	uint8_t SREG_save;
+	
 	/* Disable watchdog if enabled by bootloader/fuses */
 	MCUSR &= ~(1 << WDRF);
 	wdt_disable();
@@ -130,10 +132,15 @@ void main(void)
 
 	// run the background task (audio sampling done by interrupt)
 	while (1) {
+		// disable interrupts to prevent race conditions with interrupt handler
+		SREG_save = SREG;
+		cli();
 		// check if USB General interrupts require processing
-		while (USB_General_Interrupt_Requires_Processing()) {
+		if (USB_General_Interrupt_Requires_Processing()) {
 			USB_Handle_General_Interrupt();
 		}
+		// restore interrupts
+		SREG = SREG_save;
 
 		// handle any control packets received
 		if (USB_IsConnected) {

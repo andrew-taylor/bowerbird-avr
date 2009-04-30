@@ -74,24 +74,16 @@ ISR(USB_GEN_vect)
 
 bool USB_General_Interrupt_Requires_Processing(void)
 {
-	bool ret_val;
-	// disable interrupts to prevent race with actual interrupt handler
-	cli();
-	ret_val = (usb_general_interrupt_count > 0);
-	sei();
-	return ret_val;
+	return (usb_general_interrupt_count > 0);
 }
 
 void USB_Handle_General_Interrupt(void)
 {
-	// prevent race conditions with actual interrupt handler
-	cli();
 	if (--usb_general_interrupt_count < 0) {
 		// make sure we're not running this too often
 		return;
 	}
-	sei();
-	
+
 	#if defined(USB_CAN_BE_DEVICE)
 	#if defined(USB_FULL_CONTROLLER) || defined(USB_MODIFIED_FULL_CONTROLLER)
 	if (USB_INT_HasOccurred(USB_INT_VBUS) && USB_INT_IsEnabled(USB_INT_VBUS))
