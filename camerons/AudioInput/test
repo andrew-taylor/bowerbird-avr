@@ -10,12 +10,15 @@ then
 	shift
 fi
 
-rm $FILE.*
+rm -f $FILE.*
 
-arecord $DEFAULT_ARGS $@ 2>&1 | egrep '(^[PS]| format|  rate|bits)'
-
-for i in `seq 0 $(($CHANNELS-1))`
-do
-	echo Channel $i
-	aplay $FILE.$i
-done
+if (arecord $DEFAULT_ARGS $@ 2>&1 | egrep '(^[PS]| format|  rate|bits)')
+then
+	for i in `seq 0 $(($CHANNELS-1))`
+	do
+		echo Channel $i
+		aplay $FILE.$i
+	done
+else
+	echo "Capture Failed"
+fi
