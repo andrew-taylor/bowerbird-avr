@@ -423,8 +423,6 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 {
 	uint8_t freq_high_byte;
 	int16_t freq_low_word;
-	// FIXME hacked removal
-	return;
 	
 	// find out if its a "get" or a "set" request
 	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
@@ -459,6 +457,10 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 	}
 	else {
 		if (bRequest == AUDIO_REQ_SET_Cur) {
+/*			if (PORTC)
+				PORTC /= 2;
+			else
+				PORTC = 0xFF;*/
 			/* A request for the current setting of a particular channel's input gain. */
 			Endpoint_ClearSetupReceived();
 			freq_low_word = Endpoint_Read_Word();

@@ -409,7 +409,7 @@ GENDEPFLAGS = -MMD -MP -MF .dep/$(@F).d
 # Add target processor to flags.
 ALL_CFLAGS = -mmcu=$(MCU) -I. $(CFLAGS) $(GENDEPFLAGS)
 ALL_CPPFLAGS = -mmcu=$(MCU) -I. -x c++ $(CPPFLAGS) $(GENDEPFLAGS)
-ALL_ASFLAGS = -mmcu=$(MCU) -I. -x assembler-with-cpp $(ASFLAGS)
+ALL_ASFLAGS = -mmcu=$(MCU) -I. -x assembler-with-cpp $(ASFLAGS) $(GENDEPFLAGS)
 
 
 
@@ -636,6 +636,11 @@ clean_list:
 	$(REMOVE) $(SRC:.c=.s)
 	$(REMOVE) $(SRC:.c=.d)
 	$(REMOVE) $(SRC:.c=.i)
+	$(REMOVE) $(ASRC:%.S=$(OBJDIR)/%.o)
+	$(REMOVE) $(ASRC:%.S=$(OBJDIR)/%.lst)
+	$(REMOVE) $(ASRC:.S=.s)
+	$(REMOVE) $(ASRC:.S=.d)
+	$(REMOVE) $(ASRC:.S=.i)
 	$(REMOVEDIR) .dep
 
 

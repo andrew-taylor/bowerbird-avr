@@ -59,19 +59,19 @@ skip_iter_reset:
 
 		/* if channel is muted then send zeroes */
 		/* load address of element from channel mute array */
-		mov		pair_lsb,				isr_iter
+/*		mov		pair_lsb,				isr_iter
 		clr		pair_msb
 		subi	pair_lsb,				lo8(-(channel_mute))
-		sbci	pair_msb,				hi8(-(channel_mute))
+		sbci	pair_msb,				hi8(-(channel_mute))*/
 		/* read mute value from memory address (X is r27:r26) */
-		ld		temp_reg,				X
+/*		ld		temp_reg,				X
 		tst		temp_reg
-		breq	normal_sample
+		breq	normal_sample*/
 		/* if muted, then load zeroes and skip sampling */
-		clr		pair_lsb
+/*		clr		pair_lsb
 		clr		pair_msb
 		rjmp	send_data
-
+*/
 normal_sample:
 		/* isr_iter is the adc index */
 		/* start of ADC_ReadSampleAndSetNextAddr code */
@@ -131,10 +131,7 @@ send_data:
 		cpi 	pair_lsb,				AUDIO_STREAM_FULL_THRESHOLD
 		cpc 	pair_msb,				__zero_reg__
 		brlo 	end
-		/* FIXME toggle portc */
-		in 		temp_reg,				_SFR_IO_ADDR(PORTC)
-		com		temp_reg
-		out 	_SFR_IO_ADDR(PORTC),	temp_reg
+		
 		/* send to host (clear FIFOCON bit in UEINTX) */
 		lds 	temp_reg,				UEINTX
 		cbr 	temp_reg,				FIFOCON_MASK

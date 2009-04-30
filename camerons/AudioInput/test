@@ -1,24 +1,54 @@
 #!/bin/bash
 
+TEST_MODE="play"
 FILE="test.wav"
+FORMAT="S16_LE"
 CHANNELS=`amixer -c 1 | grep 'Capture channels'|tr '-' '\n'|wc -l`
-DEFAULT_ARGS="-v -Dplughw:1,0 $FILE -c $CHANNELS -I"
+DEFAULT_ARGS="-v -Dplughw:1,0 $FILE -f $FORMAT -c $CHANNELS"
 
-if [ ¨$1¨ == ¨-m¨ ]
+while [ "$1" ]
+do
+	if [ "$1" == "-x" ]
+	then
+		amixer -c 1 sset Mic,0 100% cap
+		shift
+	elif [ "$1" == "-m" ]
+	then
+		TEST_MODE="$2"
+		shift
+		shift
+	else
+		break
+	fi
+done
+
+if [ "$TEST_MODE" != "view" ]
 then
-	amixer -c 1 sset Mic,0 100% cap
-	shift
+	# split recording into individual files
+	DEFAULT_ARGS+=" -I"
 fi
 
-rm -f $FILE.*
+rm -f $FILE*
 
-if (arecord $DEFAULT_ARGS $@ 2>&1 | egrep '(^[PS]| format|  rate|bits)')
+TEMPFILE=`tempfile`
+
+ARECORD_CMD="arecord $DEFAULT_ARGS $@"
+echo $ARECORD_CMD
+if ($ARECORD_CMD > $TEMPFILE 2>&1)
 then
-	for i in `seq 0 $(($CHANNELS-1))`
-	do
-		echo Channel $i
-		aplay $FILE.$i
-	done
+	cat $TEMPFILE | egrep '(^[PS]| format|  rate|bits)'
+	if [ "$TEST_MODE" == "view" ]
+	then
+		audacity $FILE
+	else
+		for i in `seq 0 $(($CHANNELS-1))`
+		do
+			echo Channel $i
+			aplay -f $FORMAT $@ $FILE.$i
+		done
+	fi
 else
-	echo "Capture Failed"
+	echo "Capture Failed:"
+	cat $TEMPFILE
 fi
+rm -f $TEMPFILE

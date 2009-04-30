@@ -1,3 +1,4 @@
 * get mute working
 * get variable frequency sampling descriptor working
 * get variable frequency sampling working
+* debug why gain setting doesn't always work
