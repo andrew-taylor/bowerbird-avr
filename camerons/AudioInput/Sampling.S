@@ -11,8 +11,8 @@
 __tmp_reg__ = 0
 __zero_reg__ = 1
 
-.global	TIMER1_COMPA_vector
-TIMER1_COMPA_vector:
+.global	TIMER1_COMPA_vect
+TIMER1_COMPA_vect:
 		/* push our working registers onto the stack */
 		push 	__zero_reg__
 		push 	__tmp_reg__
@@ -70,7 +70,7 @@ skip_iter_reset:
 ;		clr		pair_msb
 ;		clr		pair_lsb
 ;		rjmp	send_data
-		
+
 normal_sample:
 		/* isr_iter is the adc index */
 		/* start of ADC_ReadSampleAndSetNextAddr code */
