@@ -11,23 +11,23 @@
 __tmp_reg__ = 0
 __zero_reg__ = 1
 
-.global	TIMER1_COMPA_vect
-TIMER1_COMPA_vect:
+.global	TIMER1_COMPA_vector
+TIMER1_COMPA_vector:
 		/* push our working registers onto the stack */
 		push 	__zero_reg__
 		push 	__tmp_reg__
 		/* save status register */
-		in 		__tmp_reg__,_SFR_IO_ADDR(SREG)
+		in 		__tmp_reg__,			_SFR_IO_ADDR(SREG)
 		push 	__tmp_reg__
 		clr 	__zero_reg__
 		push 	usb_ep_save
 		push 	pair_lsb
 		push 	pair_msb
 		push 	isr_iter
-		push  	temp_reg
+		push	temp_reg
 
 		/* FIXME debug: turn on PORTA */
-		ser  temp_reg
+		ser		temp_reg
 		out		_SFR_IO_ADDR(PORTA), temp_reg
 
 		/* save current usb endpoint (anded with mask to guarantee safe) */
@@ -36,7 +36,7 @@ TIMER1_COMPA_vect:
 
 		/* select the audio stream endpoint */
 		ldi 	temp_reg,				AUDIO_STREAM_EPNUM
-		sts 	UENUM,     temp_reg
+		sts 	UENUM,					temp_reg
 
 		/** if audio stream can't be written to, then skip 
 		 * (this will cause samples to be lost, but there's not much we can do) */
@@ -56,19 +56,34 @@ adcloop:
 		brne	skip_iter_reset
 		clr		isr_iter
 skip_iter_reset:
-				
+
+		/* if channel is muted then send zeroes */
+		/* load address of element from channel mute array */
+;		clr		pair_msb
+;		mov		pair_lsb,				isr_iter
+;		adiw	pair_lsb,				channel_mute
+		/* read mute value from memory address (X is r27:r26) */
+;		ld		temp_reg,				X
+;		tst		temp_reg
+;		breq	normal_sample
+		/* if muted, then load zeroes and skip sampling */
+;		clr		pair_msb
+;		clr		pair_lsb
+;		rjmp	send_data
+		
+normal_sample:
 		/* isr_iter is the adc index */
 		/* start of ADC_ReadSampleAndSetNextAddr code */
 		/* enable nSS (chip select) DD_SS(0) pin on PORTB */
 		cbi		_SFR_IO_ADDR(PORTB),	DD_SS
 		/* load MSB of word to send to ADC */
-		mov		temp_reg,  				isr_iter
+		mov		temp_reg,				isr_iter
 		andi	temp_reg,				ADC_ADDR_MASK
-		lsl  temp_reg
-		lsl  temp_reg
+		lsl		temp_reg
+		lsl		temp_reg
 		ori		temp_reg,				ADC_CR_MSB
 		/* write the MSB to the SPI data register (SPDR) */
-		sts		SPDR,       temp_reg
+		sts		SPDR,					temp_reg
 /* wait for interrupt (SPIF pin in SPSR) to be set (data is ready) */
 msloop:
 		lds		temp_reg,				SPSR
@@ -82,7 +97,7 @@ msloop:
 		/* load LSB of word to send to ADC */
 		ldi		temp_reg,				ADC_CR_LSB
 		/* write the MSB to the SPI data register (SPDR) */
-		sts		SPDR,       temp_reg
+		sts		SPDR,					temp_reg
 /* wait for interrupt (SPIF pin in SPSR) to be set (data is ready) */
 lsloop:
 		lds		temp_reg,				SPSR
@@ -94,18 +109,20 @@ lsloop:
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 		/* shift 4x to the left, with overflow going into MSB */
 		swap 	pair_lsb
-		mov		temp_reg,  				pair_lsb
+		mov		temp_reg,				pair_lsb
 		andi	pair_lsb,				0xF0
 		andi	temp_reg,				0x0F
-		or		pair_msb,      temp_reg
+		or		pair_msb,				temp_reg
 
+send_data:
  		/* send data to usb (8bit FIFO, so just write twice) */
-  		sts 	UEDATX,					pair_lsb
+		sts 	UEDATX,					pair_lsb
 		sts 	UEDATX,					pair_msb
 
 		/* loop back while still channels to process (we haven't sent 0) */
 		cp 		isr_iter,				__zero_reg__
 		brne 	adcloop
+/* end of adcloop */
 
 		/* if buffer is just about full, then send it to the host */
 		lds 	pair_lsb,				UEBCLX
@@ -116,11 +133,11 @@ lsloop:
 		/* FIXME toggle portc */
 		in 		temp_reg,				_SFR_IO_ADDR(PORTC)
 		com		temp_reg
-		out 	_SFR_IO_ADDR(PORTC), temp_reg
+		out 	_SFR_IO_ADDR(PORTC),	temp_reg
 		/* send to host (clear FIFOCON bit in UEINTX) */
 		lds 	temp_reg,				UEINTX
 		cbr 	temp_reg,				FIFOCON_MASK
-		sts 	UEINTX,     temp_reg
+		sts 	UEINTX,					temp_reg
 
 end:
 		/* restore previous endpoint */
