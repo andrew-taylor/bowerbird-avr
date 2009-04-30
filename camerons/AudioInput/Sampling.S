@@ -59,17 +59,18 @@ skip_iter_reset:
 
 		/* if channel is muted then send zeroes */
 		/* load address of element from channel mute array */
-;		clr		pair_msb
-;		mov		pair_lsb,				isr_iter
-;		adiw	pair_lsb,				channel_mute
+		mov		pair_lsb,				isr_iter
+		clr		pair_msb
+		subi	pair_lsb,				lo8(-(channel_mute))
+		sbci	pair_msb,				hi8(-(channel_mute))
 		/* read mute value from memory address (X is r27:r26) */
-;		ld		temp_reg,				X
-;		tst		temp_reg
-;		breq	normal_sample
+		ld		temp_reg,				X
+		tst		temp_reg
+		breq	normal_sample
 		/* if muted, then load zeroes and skip sampling */
-;		clr		pair_msb
-;		clr		pair_lsb
-;		rjmp	send_data
+		clr		pair_lsb
+		clr		pair_msb
+		rjmp	send_data
 
 normal_sample:
 		/* isr_iter is the adc index */
