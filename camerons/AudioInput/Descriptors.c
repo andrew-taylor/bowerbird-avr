@@ -138,19 +138,19 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		ChannelControls: {
 			FEATURE_MUTE | FEATURE_VOLUME,
 #if AUDIO_CHANNELS > 1
-			FEATURE_MUTE | FEATURE_VOLUME | FEATURE_AUTOMATIC_GAIN,
+			FEATURE_MUTE | FEATURE_VOLUME/* | FEATURE_AUTOMATIC_GAIN*/,
 #if AUDIO_CHANNELS > 2
 			FEATURE_MUTE | FEATURE_VOLUME,
 #if AUDIO_CHANNELS > 3
-			FEATURE_MUTE | FEATURE_VOLUME | FEATURE_AUTOMATIC_GAIN,
+			FEATURE_MUTE | FEATURE_VOLUME /*| FEATURE_AUTOMATIC_GAIN*/,
 #if AUDIO_CHANNELS > 4
 			FEATURE_MUTE | FEATURE_VOLUME,
 #if AUDIO_CHANNELS > 5
-			FEATURE_MUTE | FEATURE_VOLUME | FEATURE_AUTOMATIC_GAIN,
+			FEATURE_MUTE | FEATURE_VOLUME /*| FEATURE_AUTOMATIC_GAIN*/,
 #if AUDIO_CHANNELS > 6
 			FEATURE_MUTE | FEATURE_VOLUME,
 #if AUDIO_CHANNELS > 7
-			FEATURE_MUTE | FEATURE_VOLUME | FEATURE_AUTOMATIC_GAIN
+			FEATURE_MUTE | FEATURE_VOLUME /*| FEATURE_AUTOMATIC_GAIN*/
 #endif // 7
 #endif // 6
 #endif // 5
@@ -234,11 +234,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		SubFrameSize: 0x02,  // 2 bytes per sample
 		BitResolution: 0x0C, // We use 12 bits of the 2 bytes
 		SampleFrequencyType: 0, // continous sampling frequency setting supported 
-// 		SampleFrequencyType: (sizeof(ConfigurationDescriptor.AudioFormat.SampleFrequencies) / sizeof(AudioSampleFreq_t)),
-		// Could specify several sampling rates here.
-		// FIXME verify how this is computed: per stream, or or per channel?
 		SampleFrequencies: {
-// 			SAMPLE_FREQ(DEFAULT_AUDIO_SAMPLE_FREQUENCY)
 			SAMPLE_FREQ(LOWEST_AUDIO_SAMPLE_FREQUENCY),
 			SAMPLE_FREQ(HIGHEST_AUDIO_SAMPLE_FREQUENCY)
 		}
@@ -267,7 +263,6 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 			Type: DTYPE_AudioEndpoint
 		},
 		Subtype: DSUBTYPE_General,
-//   		Attributes: 0x00,
   		Attributes: EP_CS_ATTR_SAMPLE_RATE,
   		LockDelayUnits: 0x02,  // FIXME reserved value for PCM streams?
 		LockDelay: 0x0000  // 0 for async streams

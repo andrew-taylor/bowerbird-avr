@@ -61,13 +61,13 @@
 
 /** the default sampling frequency for all the microphones
  * FIXME add preprocessor check to ensure frequency will work */
-#define LOWEST_AUDIO_SAMPLE_FREQUENCY		2000
+#define LOWEST_AUDIO_SAMPLE_FREQUENCY		4000
 #define HIGHEST_AUDIO_SAMPLE_FREQUENCY		80000
-#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      16000
+#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      8000
 
 
 /** 8 audio streams */
-#define AUDIO_CHANNELS	1
+#define AUDIO_CHANNELS	8
 
 
 /** sample size in bytes, which is sizeof(uint16_t) = 2, but we can't put the
