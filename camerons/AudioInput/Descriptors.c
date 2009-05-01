@@ -233,14 +233,14 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		Channels: AUDIO_CHANNELS,
 		SubFrameSize: 0x02,  // 2 bytes per sample
 		BitResolution: 0x0C, // We use 12 bits of the 2 bytes
-// 		SampleFrequencyType: 0, // continous sampling frequency setting supported 
-		SampleFrequencyType: (sizeof(ConfigurationDescriptor.AudioFormat.SampleFrequencies) / sizeof(AudioSampleFreq_t)),
+		SampleFrequencyType: 0, // continous sampling frequency setting supported 
+// 		SampleFrequencyType: (sizeof(ConfigurationDescriptor.AudioFormat.SampleFrequencies) / sizeof(AudioSampleFreq_t)),
 		// Could specify several sampling rates here.
 		// FIXME verify how this is computed: per stream, or or per channel?
 		SampleFrequencies: {
-			SAMPLE_FREQ(DEFAULT_AUDIO_SAMPLE_FREQUENCY)
-// 			SAMPLE_FREQ(LOWEST_AUDIO_SAMPLE_FREQUENCY),
-// 			SAMPLE_FREQ(HIGHEST_AUDIO_SAMPLE_FREQUENCY)
+// 			SAMPLE_FREQ(DEFAULT_AUDIO_SAMPLE_FREQUENCY)
+			SAMPLE_FREQ(LOWEST_AUDIO_SAMPLE_FREQUENCY),
+			SAMPLE_FREQ(HIGHEST_AUDIO_SAMPLE_FREQUENCY)
 		}
 	},
 
@@ -267,8 +267,9 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 			Type: DTYPE_AudioEndpoint
 		},
 		Subtype: DSUBTYPE_General,
-		Attributes: 0x00, // FIXME should be EP_CS_ATTR_SAMPLE_RATE
-		LockDelayUnits: 0x02,  // FIXME reserved value for PCM streams?
+//   		Attributes: 0x00,
+  		Attributes: EP_CS_ATTR_SAMPLE_RATE,
+  		LockDelayUnits: 0x02,  // FIXME reserved value for PCM streams?
 		LockDelay: 0x0000  // 0 for async streams
 	}
 };

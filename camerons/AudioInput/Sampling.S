@@ -26,10 +26,6 @@ TIMER1_COMPA_vect:
 		push 	isr_iter
 		push	temp_reg
 
-		/* FIXME debug: turn on PORTA */
-		ser		temp_reg
-		out		_SFR_IO_ADDR(PORTA), temp_reg
-
 		/* save current usb endpoint (anded with mask to guarantee safe) */
 		lds		usb_ep_save,			UENUM
 		andi	usb_ep_save,			ENDPOINT_EPNUM_MASK
@@ -140,9 +136,6 @@ send_data:
 end:
 		/* restore previous endpoint */
 		sts 	UENUM,					usb_ep_save
-
-		/* FIXME debug: turn off PORTA */
-		out 	_SFR_IO_ADDR(PORTA),	__zero_reg__
 
 		/* restore registers */
 		pop 	temp_reg

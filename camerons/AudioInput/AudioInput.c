@@ -75,9 +75,7 @@ HANDLES_EVENT(USB_UnhandledControlPacket);
 // FIXME put all global variables into a struct
 // (makes it faster to reference them)
 // sampling frequency for all channels
-uint32_t current_audio_sampling_frequency;
-// this value is used to delay update until next recording starts
-uint32_t next_audio_sampling_frequency;
+uint32_t audio_sampling_frequency;
 // bool array of whether channels are muted
 uint8_t channel_mute[AUDIO_CHANNELS];
 // channel gains in db
@@ -87,7 +85,8 @@ uint8_t channel_automatic_gain[AUDIO_CHANNELS];
 
 
 // forward declarations
-void InitialiseAndStartSamplingTimer(uint32_t sampling_frequency);
+void ConfigureSamplingTimer(uint32_t sampling_frequency);
+void StartSamplingTimer(void);
 void StopSamplingTimer(void);
 uint8_t Volumes_Init(void);
 static inline int16_t ConvertByteToVolume(uint8_t byte);
@@ -98,9 +97,14 @@ void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_
 void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType);
 static inline void SendNAK(void);
 
+static inline void showVal(uint16_t val) 
+{
+	PORTA = ((val >> 8) & 0xFF);
+	PORTC = (val & 0xFF);
+}
+
 
 void main(void) __ATTR_NORETURN__;
-
 void main(void)
 {
 	uint8_t SREG_save;
@@ -109,6 +113,10 @@ void main(void)
 	MCUSR &= ~(1 << WDRF);
 	wdt_disable();
 
+	// FIXME hack enable port a & c for debugging
+	DDRA = 0xFF;
+	DDRC = 0xFF;
+	
 	/* Disable Clock Division */
 	clock_prescale_set(clock_div_1);
 
@@ -117,8 +125,8 @@ void main(void)
 	PreAmps_Init();
 
 	// set the default sampling frequency
-	next_audio_sampling_frequency = DEFAULT_AUDIO_SAMPLE_FREQUENCY;
-	
+	ConfigureSamplingTimer(DEFAULT_AUDIO_SAMPLE_FREQUENCY);
+
 	// read all the volume values from the digital pots
 	Volumes_Init();
 
@@ -126,10 +134,6 @@ void main(void)
 	// FIXME disable USB gen vect, and poll for it in the loop below
 	USB_Init();
 	
-	// FIXME hack enable port a & c for debugging
-	DDRA = 0xFF;
-	DDRC = 0xFF;
-
 	// run the background task (audio sampling done by interrupt)
 	while (1) {
 		// disable interrupts to prevent race conditions with interrupt handler
@@ -254,7 +258,7 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 					ADC_ReadSampleAndSetNextAddr(0);
 
 					/* Sample reload timer initialization */
-					InitialiseAndStartSamplingTimer(next_audio_sampling_frequency);
+					StartSamplingTimer();
 				}
 				else {
 					/* Stop the sample reload timer */
@@ -421,27 +425,31 @@ void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType,
 
 void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 {
-	uint8_t freq_high_byte;
-	int16_t freq_low_word;
+	uint8_t freq_byte[3];
+	uint32_t sampling_frequency;
 	
 	// find out if its a "get" or a "set" request
 	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
 		switch (bRequest) {
 			case AUDIO_REQ_GET_Cur:
-				freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(current_audio_sampling_frequency);
-				freq_low_word = SAMPLE_FREQ_LOW_WORD(current_audio_sampling_frequency);
+				freq_byte[2] = (audio_sampling_frequency >> 16) & 0xFF;
+				freq_byte[1] = (audio_sampling_frequency >> 8) & 0xFF;
+				freq_byte[0] = (audio_sampling_frequency & 0xFF);
 				break;
 			case AUDIO_REQ_GET_Min:
-				freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(LOWEST_AUDIO_SAMPLE_FREQUENCY);
-				freq_low_word = SAMPLE_FREQ_LOW_WORD(LOWEST_AUDIO_SAMPLE_FREQUENCY);
+				freq_byte[2] = ((uint32_t)LOWEST_AUDIO_SAMPLE_FREQUENCY >> 16) & 0xFF;
+				freq_byte[1] = ((uint32_t)LOWEST_AUDIO_SAMPLE_FREQUENCY >> 8) & 0xFF;
+				freq_byte[0] = ((uint32_t)LOWEST_AUDIO_SAMPLE_FREQUENCY & 0xFF);
 				break;
 			case AUDIO_REQ_GET_Max:
-				freq_high_byte = SAMPLE_FREQ_HIGH_BYTE(HIGHEST_AUDIO_SAMPLE_FREQUENCY);
-				freq_low_word = SAMPLE_FREQ_LOW_WORD(HIGHEST_AUDIO_SAMPLE_FREQUENCY);
+				freq_byte[2] = ((uint32_t)HIGHEST_AUDIO_SAMPLE_FREQUENCY >> 16) & 0xFF;
+				freq_byte[1] = ((uint32_t)HIGHEST_AUDIO_SAMPLE_FREQUENCY >> 8) & 0xFF;
+				freq_byte[0] = ((uint32_t)HIGHEST_AUDIO_SAMPLE_FREQUENCY & 0xFF);
 				break;
 			case AUDIO_REQ_GET_Res:
-				freq_high_byte = 0;
-				freq_low_word = 1;
+				freq_byte[2] = 0;
+				freq_byte[1] = 0;
+				freq_byte[0] = 1;				
 				break;
 			default:
 				// FIXME send NAK?
@@ -450,25 +458,29 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 		}
 		Endpoint_ClearSetupReceived();
 		// FIXME check this is correct order to send the three bytes
-		Endpoint_Write_Control_Stream(&freq_low_word, sizeof(freq_low_word));
-		Endpoint_Write_Control_Stream(&freq_high_byte, sizeof(freq_high_byte));
+		Endpoint_Write_Control_Stream(freq_byte, 3);
 		Endpoint_ClearSetupOUT();
 		return;
 	}
 	else {
 		if (bRequest == AUDIO_REQ_SET_Cur) {
-/*			if (PORTC)
-				PORTC /= 2;
-			else
-				PORTC = 0xFF;*/
 			/* A request for the current setting of a particular channel's input gain. */
 			Endpoint_ClearSetupReceived();
-			freq_low_word = Endpoint_Read_Word();
-			freq_high_byte = Endpoint_Read_Byte();
+			Endpoint_Read_Control_Stream(freq_byte, 3);
 			Endpoint_ClearSetupIN();
 
-			// update the sampling frequency for next recording
-			next_audio_sampling_frequency = ((uint32_t)freq_high_byte << 16) & freq_low_word;
+			// update the sampling frequency
+			sampling_frequency = ((uint32_t)(freq_byte[2]) << 16)
+					| ((uint32_t)(freq_byte[1]) << 8)
+					| ((uint32_t)(freq_byte[0]));
+			
+			// limit the frequency to our bounds
+			if (sampling_frequency < LOWEST_AUDIO_SAMPLE_FREQUENCY)
+				sampling_frequency = LOWEST_AUDIO_SAMPLE_FREQUENCY;
+			else if (sampling_frequency > HIGHEST_AUDIO_SAMPLE_FREQUENCY)
+				sampling_frequency = HIGHEST_AUDIO_SAMPLE_FREQUENCY;
+			
+			ConfigureSamplingTimer(sampling_frequency);
 			return;
 		}
 	}
@@ -500,7 +512,6 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
  */
 // ISR(TIMER1_COMPA_vect, ISR_BLOCK)
 // {
-// 	PORTA = 0xFF;
 // 	/* Save the current endpoint, restore it on exit. */
 // 	uint8_t PrevEndpoint = Endpoint_GetCurrentEndpoint();
 // 
@@ -528,35 +539,40 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 // 		} while (i != 0);
 // 
 // 		if (Endpoint_BytesInEndpoint() > AUDIO_STREAM_FULL_THRESHOLD) {
-// 			PORTC = ~PORTC;
 // 			/* Send the full packet to the host */
 // 			Endpoint_ClearCurrentBank();
 // 		}
 // 	}
 // 
 // 	Endpoint_SelectEndpoint(PrevEndpoint);
-// 	PORTA = 0;
 // }
 
 
-void InitialiseAndStartSamplingTimer(uint32_t sampling_frequency)
+void ConfigureSamplingTimer(uint32_t sampling_frequency)
 {
+// 	showVal((uint16_t)(sampling_frequency & 0xFFFF));
+	
 	unsigned char ucSREG;
 	
 	// disable interrupts to prevent race conditions with 16bit registers
 	ucSREG = SREG;
 	cli();
 
-	TCCR1B  = (1 << WGM12)  // Clear-timer-on-compare-match-OCR1A (CTC) mode
-			| (1 << CS10);  // Full FCPU speed
-	OCR1A   = (uint16_t)(F_CPU / sampling_frequency);
-	TIMSK1 |= (1 << OCIE1A); // Enable timer interrupt
+	OCR1A = (uint16_t)(F_CPU / sampling_frequency);
 
 	// restore status register (will re-enable interrupts if the were enabled)
 	SREG = ucSREG;
-
+	
 	// save current sampling frequency so we can report it later
-	current_audio_sampling_frequency = sampling_frequency;
+	audio_sampling_frequency = sampling_frequency;
+}
+
+
+void StartSamplingTimer(void)
+{
+	TCCR1B  = (1 << WGM12)  // Clear-timer-on-compare-match-OCR1A (CTC) mode
+			| (1 << CS10);  // Full FCPU speed
+	TIMSK1 |= (1 << OCIE1A); // Enable timer interrupt
 }
 
 

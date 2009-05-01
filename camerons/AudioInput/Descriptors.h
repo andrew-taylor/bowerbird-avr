@@ -103,8 +103,8 @@
 #define TERMINAL_OUT_COMMUNICATION  0x0306
 #define TERMINAL_OUT_LOWFREQ        0x0307
 
-#define SAMPLE_FREQ_LOW_WORD(x) ((uint32_t)x & 0x00FFFF)
-#define SAMPLE_FREQ_HIGH_BYTE(x) (((uint32_t)x >> 16) & 0x0000FF)
+#define SAMPLE_FREQ_LOW_WORD(x) ((uint32_t)x & 0x0000FFFF)
+#define SAMPLE_FREQ_HIGH_BYTE(x) (((uint32_t)x >> 16) & 0x000000FF)
 #define SAMPLE_FREQ(x) { LowWord: SAMPLE_FREQ_LOW_WORD(x), HighByte: SAMPLE_FREQ_HIGH_BYTE(x)}
 
 // Terminal IDs.
@@ -203,8 +203,8 @@ typedef struct
   uint8_t                   BitResolution;
   uint8_t                   SampleFrequencyType;
 
-  AudioSampleFreq_t         SampleFrequencies[1];
-//   AudioSampleFreq_t         SampleFrequencies[2];
+//   AudioSampleFreq_t         SampleFrequencies[1];
+  AudioSampleFreq_t         SampleFrequencies[2];
 } USB_AudioFormat_t;
 
 typedef struct

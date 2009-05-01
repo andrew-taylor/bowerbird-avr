@@ -81,7 +81,6 @@ int16_t ADC_ReadSampleAndSetNextAddr(const uint8_t address)
 	int16_t ret_val;
 
 	asm volatile(
-// 			"/* invert PORTC so we can observe when this is called */\n\t"
 			 "/* save register 16 */\n\t"
 			"mov	__tmp_reg__, r16\n\t"
 			"/* enable nSS (chip select) DD_SS(0) pin on PORTB */\n\t"

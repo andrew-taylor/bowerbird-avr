@@ -9,6 +9,9 @@
 #ifndef __SHARED_H__
 #define __SHARED_H__
 
+#define TRUE          1
+#define FALSE         0
+
 /** duplicated from MyUSB/Drivers/USB/LowLevel/Endpoint.h because
  * I need it in the assembly code and that file has C function declarations */
 #include <MyUSB/Drivers/USB/LowLevel/USBMode.h>
@@ -28,6 +31,10 @@
 #define ENDPOINT_MAX_ENDPOINTS                  5
 #define ENDPOINT_MAX_SIZE                       64
 #endif
+
+#define AUDIO_STREAM_EPNUM          1
+#define AUDIO_STREAM_EPSIZE         ENDPOINT_MAX_SIZE
+#define ENDPOINT_EPNUM_MASK			0b111
 
 
 /** Copied from kernel source ./sound/usb/usbaudio.h
@@ -51,28 +58,25 @@
 #define	temp_reg	r29
 #endif /* __ASSEMBLER__ */
 
+
 /** the default sampling frequency for all the microphones
  * FIXME add preprocessor check to ensure frequency will work */
-#define LOWEST_AUDIO_SAMPLE_FREQUENCY		5000
+#define LOWEST_AUDIO_SAMPLE_FREQUENCY		2000
 #define HIGHEST_AUDIO_SAMPLE_FREQUENCY		80000
-#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      30000
+#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      16000
+
 
 /** 8 audio streams */
-#define AUDIO_CHANNELS	2
+#define AUDIO_CHANNELS	1
+
 
 /** sample size in bytes, which is sizeof(uint16_t) = 2, but we can't put the
  * calculation into the code because we need it in assembly, which can't handle
  * the file (stdint.h) that defines uint16_t because of the typedefs in it.
  */
 #define SAMPLE_SIZE		2
-#define AUDIO_STREAM_FULL_THRESHOLD (AUDIO_STREAM_EPSIZE - (AUDIO_CHANNELS * SAMPLE_SIZE - 1))
-	
-#define AUDIO_STREAM_EPNUM          1
-#define AUDIO_STREAM_EPSIZE         ENDPOINT_MAX_SIZE
-#define ENDPOINT_EPNUM_MASK			0b111
+#define AUDIO_STREAM_FULL_THRESHOLD (AUDIO_STREAM_EPSIZE - ((AUDIO_CHANNELS * SAMPLE_SIZE) - 1))
 
-#define TRUE          1
-#define FALSE         0
 
 /** Name the SPI-specific registers/bits
  * see avr-lib's io.h for the basic definitions. */
