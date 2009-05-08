@@ -124,7 +124,7 @@ typedef struct
   uint16_t                  TotalLength;
 			
   uint8_t                   InCollection;
-  uint8_t                   InterfaceNumbers[1];			
+  uint8_t                   InterfaceNumbers[1];
 } USB_AudioInterface_AC_t;
 
 // Generalised to more than 2 channels.
@@ -242,8 +242,14 @@ typedef struct
   USB_AudioStreamEndpoint_Std_t         AudioEndpoint; // isochronous endpoint
   USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC; // audio-class specifics of the endpoint
 } USB_Descriptor_Configuration_t;
-		
-/* Function Prototypes: */
+
+
+/** expose public variables */ 
+extern uint8_t num_channels[NUM_CONFIGURATIONS];
+extern uint8_t ADC_channels[NUM_CONFIGURATIONS][MAX_AUDIO_CHANNELS];
+
+
+/** Function Prototypes: */
 bool USB_GetDescriptor(const uint16_t wValue, const uint8_t wIndex,
 		void** const DescriptorAddress, uint16_t* const DescriptorSize)
 				ATTR_WARN_UNUSED_RESULT ATTR_WEAK ATTR_NON_NULL_PTR_ARG(3, 4);
