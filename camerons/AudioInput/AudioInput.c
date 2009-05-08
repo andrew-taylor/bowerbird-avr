@@ -51,8 +51,6 @@
 
 #include <MyUSB/Version.h>                      // Library Version Information
 #include <MyUSB/Drivers/USB/USB.h>              // USB Functionality
-#include <MyUSB/Drivers/USB/LowLevel/DevChapter9.h>
-#include <MyUSB/Drivers/USB/HighLevel/USBInterrupt.h>
 
 /* digital pot values used to calculate gains */
 #define DIGITAL_POT_RESISTANCE_BASE 75
@@ -73,7 +71,8 @@ HANDLES_EVENT(USB_UnhandledControlPacket);
 
 // FIXME put all global variables into a struct
 // (makes it faster to reference them)
-// FIXME this should be updated when configuration changes
+// FIXME these should be updated when configuration changes
+uint8_t active_config;
 uint8_t	num_audio_channels;
 /** Array for storing cache calculations about what is the next channel
  * to sample for each unmuted channel. Muted channels have -1. */
@@ -91,6 +90,7 @@ uint8_t channel_automatic_gain[MAX_AUDIO_CHANNELS];
 
 // forward declarations
 void UpdateNextChannelArray(void);
+void ResetADC(void);
 void ConfigureSamplingTimer(uint32_t sampling_frequency);
 void StartSamplingTimer(void);
 void StopSamplingTimer(void);
@@ -102,12 +102,7 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t chann
 void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
 void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType);
 static inline void SendNAK(void);
-
-static inline void showVal(uint16_t val) 
-{
-	PORTA = ((val >> 8) & 0xFF);
-	PORTC = (val & 0xFF);
-}
+static inline void ShowVal(uint16_t val);
 
 
 void main(void) __ATTR_NORETURN__;
@@ -126,9 +121,11 @@ void main(void)
 	/* Disable Clock Division */
 	clock_prescale_set(clock_div_1);
 
-	/** by default, use the channels of the first configuration.
-	 * this may change due to USB configuration */
-	num_audio_channels = num_channels[0];
+	/** by default, use the first configuration. */
+	active_config = 0;
+	
+	/* The number of the active configuration */
+	num_audio_channels = num_channels[active_config];
 	
 	/* Initialise the ADC, and PreAmps. */
 	ADC_Init();
@@ -197,6 +194,12 @@ EVENT_HANDLER(USB_ConfigurationChanged)
 	Endpoint_ConfigureEndpoint(AUDIO_STREAM_EPNUM, EP_TYPE_ISOCHRONOUS,
 							   ENDPOINT_DIR_IN, AUDIO_STREAM_EPSIZE,
 							   ENDPOINT_BANK_DOUBLE);
+	
+	// update cached & pre-calculated values
+	active_config = USB_ConfigurationNumber - 1;
+	num_audio_channels = num_channels[active_config];
+	UpdateNextChannelArray();
+	ResetADC();
 }
 
 
@@ -268,8 +271,8 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 					/* Clear the audio isochronous endpoint buffer. */
 					Endpoint_ResetFIFO(AUDIO_STREAM_EPNUM);
 
-					/* Tell the ADC to sample channel 0 on the next read. */
-					ADC_ReadSampleAndSetNextAddr(0);
+					/* Tell the ADC to sample the first unmuted channel on the next read. */
+					ResetADC();
 
 					/* Sample reload timer initialization */
 					StartSamplingTimer();
@@ -345,8 +348,10 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 			channel_volume[channelNumber - 1] = value;
 			// convert to a digital pot value
 			uint8_t pot_value = ConvertVolumeToByte(value);
+			// convert the USB channel number into our channels
+			uint8_t our_channel_number = ADC_channels[active_config][channelNumber - 1];
 			// set the pot
-			PreAmps_set(channelNumber - 1, pot_value);
+			PreAmps_set(our_channel_number, pot_value);
 			return;
 		}
 		else {
@@ -391,6 +396,9 @@ void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType,
 			
 			// update the next channel array for the interrupt handler
 			UpdateNextChannelArray();
+
+			// reset the ADC's next read just in case it changed due to this (un)muting
+			ResetADC();
 	
 			return;
 		}
@@ -587,7 +595,18 @@ void UpdateNextChannelArray(void)
 				j = (j + 1) % num_audio_channels;
 			}
 			// FIXME this 0 should be the configuration number
-			next_channel[i] = ADC_channels[0][j];
+			next_channel[i] = ADC_channels[active_config][j];
+		}
+	}
+}
+
+
+void ResetADC(void)
+{
+	for (uint8_t i = 0; i < num_audio_channels; ++i) {
+		if (!channel_mute[i]) {
+			ADC_ReadSampleAndSetNextAddr(ADC_channels[active_config][i]);
+			break;
 		}
 	}
 }
@@ -595,7 +614,7 @@ void UpdateNextChannelArray(void)
 
 void ConfigureSamplingTimer(uint32_t sampling_frequency)
 {
-// 	showVal((uint16_t)(sampling_frequency & 0xFFFF));
+// 	ShowVal((uint16_t)(sampling_frequency & 0xFFFF));
 	
 	unsigned char ucSREG;
 	
@@ -680,4 +699,11 @@ static inline uint8_t ConvertVolumeToByte(int16_t volume)
 static inline void SendNAK(void)
 {
 	//FIXME send a NAK to the host
+}
+
+
+static inline void ShowVal(uint16_t val)
+{
+	PORTA = ((val >> 8) & 0xFF);
+	PORTC = (val & 0xFF);
 }

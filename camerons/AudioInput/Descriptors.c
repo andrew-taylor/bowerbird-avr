@@ -44,14 +44,14 @@ upwards-compatible it seems to me.
  * are routed to each USB channel for each configuration. The number
  * of USB channels in each configuration must match the configurations
  * below */
-uint8_t num_channels[NUM_CONFIGURATIONS] = { 8, /*4, 4, 2, 2,*/ 1 };
+uint8_t num_channels[NUM_CONFIGURATIONS] = { /*8,*/ 4/*, 4, 2, 2, 1 */};
 uint8_t ADC_channels[NUM_CONFIGURATIONS][MAX_AUDIO_CHANNELS] = {
-		{ 0, 1, 2, 3, 4, 5, 6, 7 },
-/*		{ 0, 2, 4, 6, 0, 0, 0, 0 },
-		{ 0, 1, 2, 3, 0, 0, 0, 0 },
+//		{ 0, 1, 2, 3, 4, 5, 6, 7 },
+		{ 0, 2, 4, 6, 0, 0, 0, 0 },
+/*		{ 0, 1, 2, 3, 0, 0, 0, 0 },
 		{ 0, 2, 0, 0, 0, 0, 0, 0 },
-		{ 0, 1, 0, 0, 0, 0, 0, 0 },*/
-		{ 0, 0, 0, 0, 0, 0, 0, 0 } };
+		{ 0, 1, 0, 0, 0, 0, 0, 0 },
+		{ 0, 0, 0, 0, 0, 0, 0, 0 }*/ };
 
 
 USB_Descriptor_Device_t DeviceDescriptor PROGMEM = {
@@ -87,7 +87,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptors[] PROGMEM = {
 			},
 			TotalConfigurationSize: sizeof(USB_Descriptor_Configuration_t),
 			TotalInterfaces: 2,
-			ConfigurationNumber: 2,
+			ConfigurationNumber: 1,
 			ConfigurationStrIndex: NO_DESCRIPTOR_STRING,
 			ConfigAttributes: USB_CONFIG_ATTR_BUSPOWERED, // just bus-powered.
 			MaxPowerConsumption: USB_CONFIG_POWER_MA(100)
@@ -134,7 +134,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptors[] PROGMEM = {
 			TerminalID: INPUT_TERMINAL_ID,
 			TerminalType: TERMINAL_IN_MIC_ARRAY,
 			AssociatedOutputTerminal: 0x00,
-			TotalChannels: 8, // must agree with num_channels[0],
+			TotalChannels: 4, // must agree with num_channels[0],
 			ChannelConfig: 0,  // spatial characteristics (0 == unspecified)
 			ChannelStrIndex: NO_DESCRIPTOR_STRING,
 			TerminalStrIndex: NO_DESCRIPTOR_STRING
@@ -156,10 +156,6 @@ USB_Descriptor_Configuration_t ConfigurationDescriptors[] PROGMEM = {
 				FEATURE_MUTE | FEATURE_VOLUME,
 				FEATURE_MUTE | FEATURE_VOLUME,
 				FEATURE_MUTE | FEATURE_VOLUME,
-				FEATURE_MUTE | FEATURE_VOLUME,
-				FEATURE_MUTE | FEATURE_VOLUME,
-				FEATURE_MUTE | FEATURE_VOLUME,
-				FEATURE_MUTE | FEATURE_VOLUME
 			},  // per-channel controls, one entry per channel
 			FeatureUnitStrIndex: NO_DESCRIPTOR_STRING
 		},
@@ -232,7 +228,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptors[] PROGMEM = {
 			},
 			Subtype: DSUBTYPE_Format,
 			FormatType: 0x01,  // FORMAT_TYPE_1
-			Channels: 8, // must agree with num_channels[0],
+			Channels: 4, // must agree with num_channels[0],
 			SubFrameSize: 0x02,  // 2 bytes per sample
 			BitResolution: 0x0C, // We use 12 bits of the 2 bytes
 			SampleFrequencyType: 0, // continous sampling frequency setting supported
@@ -269,7 +265,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptors[] PROGMEM = {
 			LockDelayUnits: 0x02,  // FIXME reserved value for PCM streams?
 			LockDelay: 0x0000  // 0 for async streams
 		}
-	},
+	}/*,
 	{
 	Config: {
 			Header: {
@@ -278,7 +274,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptors[] PROGMEM = {
 			},
 			TotalConfigurationSize: sizeof(USB_Descriptor_Configuration_t),
 			TotalInterfaces: 2,
-			ConfigurationNumber: 1,
+			ConfigurationNumber: 2,
 			ConfigurationStrIndex: NO_DESCRIPTOR_STRING,
 			ConfigAttributes: USB_CONFIG_ATTR_BUSPOWERED, // just bus-powered.
 			MaxPowerConsumption: USB_CONFIG_POWER_MA(100)
@@ -453,7 +449,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptors[] PROGMEM = {
 			LockDelayUnits: 0x02,  // FIXME reserved value for PCM streams?
 			LockDelay: 0x0000  // 0 for async streams
 		}
-	}
+	}*/
 };
 
 USB_Descriptor_String_t LanguageString PROGMEM = {
@@ -468,10 +464,10 @@ USB_Descriptor_String_t LanguageString PROGMEM = {
 
 USB_Descriptor_String_t ManufacturerString PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(20),
+		Size: USB_STRING_LEN(17),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Taylored Industries."
+	UnicodeString: L"Taylored Products"
 };
 
 USB_Descriptor_String_t ProductString PROGMEM = {

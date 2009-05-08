@@ -20,9 +20,7 @@
 #define HIGHEST_AUDIO_SAMPLE_FREQUENCY		80000
 #define DEFAULT_AUDIO_SAMPLE_FREQUENCY      8000
 
-/** maximum 8 audio streams
- * (can't be more than 8 because we use a single register to cache the
- * mute bits in the assembly-implemented interrupt handler) */
+/** maximum number of audio streams (this is hardware-limited) */
 #define MAX_AUDIO_CHANNELS 8
 
 
