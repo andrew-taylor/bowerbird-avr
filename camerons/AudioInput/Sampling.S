@@ -14,25 +14,27 @@ __zero_reg__ = 1
 .global	TIMER1_COMPA_vect
 TIMER1_COMPA_vect:
 		/* push our working registers onto the stack */
-		push 	__zero_reg__
-		push 	__tmp_reg__
+		push	__zero_reg__
+		push	__tmp_reg__
 		/* save status register */
-		in 		__tmp_reg__,			_SFR_IO_ADDR(SREG)
-		push 	__tmp_reg__
-		clr 	__zero_reg__
-		push 	usb_ep_save
-		push 	pair_lsb
-		push 	pair_msb
-		push 	isr_iter
+		in		__tmp_reg__,			_SFR_IO_ADDR(SREG)
+		push	__tmp_reg__
+		clr		__zero_reg__
+		push	usb_ep_save
+		push	pair_lsb
+		push	pair_msb
+		push	isr_iter
 		push	temp_reg
+		push	num_chans
+		push	next_chan
 
 		/* save current usb endpoint (anded with mask to guarantee safe) */
 		lds		usb_ep_save,			UENUM
 		andi	usb_ep_save,			ENDPOINT_EPNUM_MASK
 
 		/* select the audio stream endpoint */
-		ldi 	temp_reg,				AUDIO_STREAM_EPNUM
-		sts 	UENUM,					temp_reg
+		ldi		temp_reg,				AUDIO_STREAM_EPNUM
+		sts		UENUM,					temp_reg
 
 		/** if audio stream can't be written to, then skip 
 		 * (this will cause samples to be lost, but there's not much we can do) */
@@ -41,7 +43,7 @@ TIMER1_COMPA_vect:
 		rjmp	end
 
 		/* initialise loop */
-		clr 	isr_iter
+		clr		isr_iter
 
 adcloop:
 		/* increment counter and mod MAX_AUDIO_CHANNELS
@@ -89,7 +91,7 @@ msloop:
 		/* save MSB of return value (from SPDR) */
 		lds		pair_msb,				SPDR
 		/* shift 4x to the left, discarding overflow (faster to swap & mask) */
-		swap 	pair_msb
+		swap	pair_msb
 		andi	pair_msb,				0xF0
 		/* load LSB of word to send to ADC */
 		ldi		temp_reg,				ADC_CR_LSB
@@ -105,49 +107,51 @@ lsloop:
 		/* disable nSS (chip select) DD_SS(0) pin on PORTB */
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 		/* shift 4x to the left, with overflow going into MSB */
-		swap 	pair_lsb
+		swap	pair_lsb
 		mov		temp_reg,				pair_lsb
 		andi	pair_lsb,				0xF0
 		andi	temp_reg,				0x0F
 		or		pair_msb,				temp_reg
 
 send_data:
- 		/* send data to usb (8bit FIFO, so just write twice) */
-		sts 	UEDATX,					pair_lsb
-		sts 	UEDATX,					pair_msb
+		/* send data to usb (8bit FIFO, so just write twice) */
+		sts		UEDATX,					pair_lsb
+		sts		UEDATX,					pair_msb
 
 		/* loop back while still channels to process (we haven't sent 0) */
-		cp 		isr_iter,				__zero_reg__
-		brne 	adcloop
+		cp		isr_iter,				__zero_reg__
+		brne	adcloop
 /* end of adcloop */
 
 		/* if buffer is just about full, then send it to the host */
-		lds 	pair_lsb,				UEBCLX
-		lds 	pair_msb,				UEBCHX
-		cpi 	pair_lsb,				AUDIO_STREAM_FULL_THRESHOLD
-		cpc 	pair_msb,				__zero_reg__
-		brlo 	end
+		lds		pair_lsb,				UEBCLX
+		lds		pair_msb,				UEBCHX
+		cpi		pair_lsb,				AUDIO_STREAM_FULL_THRESHOLD
+		cpc		pair_msb,				__zero_reg__
+		brlo	end
 		
 		/* send to host (clear FIFOCON bit in UEINTX) */
-		lds 	temp_reg,				UEINTX
-		cbr 	temp_reg,				FIFOCON_MASK
-		sts 	UEINTX,					temp_reg
+		lds		temp_reg,				UEINTX
+		cbr		temp_reg,				FIFOCON_MASK
+		sts		UEINTX,					temp_reg
 
 end:
 		/* restore previous endpoint */
-		sts 	UENUM,					usb_ep_save
+		sts		UENUM,					usb_ep_save
 
 		/* restore registers */
-		pop 	temp_reg
-		pop 	isr_iter
-		pop 	pair_msb
-		pop 	pair_lsb
-		pop 	usb_ep_save
-		pop 	__tmp_reg__
+		pop		next_chan
+		pop		num_chans
+		pop		temp_reg
+		pop		isr_iter
+		pop		pair_msb
+		pop		pair_lsb
+		pop		usb_ep_save
+		pop		__tmp_reg__
 		/* restore status register */
-		out 	_SFR_IO_ADDR(SREG),		__tmp_reg__
-		pop 	__tmp_reg__
-		pop 	__zero_reg__
+		out		_SFR_IO_ADDR(SREG),		__tmp_reg__
+		pop		__tmp_reg__
+		pop		__zero_reg__
 
 		/* return from interrupt handler */
 		reti
