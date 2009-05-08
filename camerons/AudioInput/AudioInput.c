@@ -71,20 +71,26 @@ HANDLES_EVENT(USB_Suspend);
 HANDLES_EVENT(USB_UnhandledControlPacket);
 
 
-
 // FIXME put all global variables into a struct
 // (makes it faster to reference them)
+// FIXME this should be updated when configuration changes
+uint8_t	num_audio_channels;
+/** Array for storing cache calculations about what is the next channel
+ * to sample for each unmuted channel. Muted channels have -1. */
+uint8_t next_channel[MAX_AUDIO_CHANNELS];
 // sampling frequency for all channels
 uint32_t audio_sampling_frequency;
 // bool array of whether channels are muted
+// FIXME remove this and use the information in next_channel
 uint8_t channel_mute[MAX_AUDIO_CHANNELS];
 // channel gains in db
 int16_t channel_volume[MAX_AUDIO_CHANNELS];
-// bool array of whether channels are set to have automatic gain
+// bool array of whether channels are set to have automatic gain (not currently used)
 uint8_t channel_automatic_gain[MAX_AUDIO_CHANNELS];
 
 
 // forward declarations
+void UpdateNextChannelArray(void);
 void ConfigureSamplingTimer(uint32_t sampling_frequency);
 void StartSamplingTimer(void);
 void StopSamplingTimer(void);
@@ -120,6 +126,10 @@ void main(void)
 	/* Disable Clock Division */
 	clock_prescale_set(clock_div_1);
 
+	/** by default, use the channels of the first configuration.
+	 * this may change due to USB configuration */
+	num_audio_channels = num_channels[0];
+	
 	/* Initialise the ADC, and PreAmps. */
 	ADC_Init();
 	PreAmps_Init();
@@ -130,11 +140,15 @@ void main(void)
 	// read all the volume values from the digital pots
 	Volumes_Init();
 
+	// set up the next channel array for the interrupt handler
+	// FIXME this should also be called when configuration changes
+	UpdateNextChannelArray();
+	
 	/* Initialize USB Subsystem */
 	// FIXME disable USB gen vect, and poll for it in the loop below
 	USB_Init();
 	
-	// run the background task (audio sampling done by interrupt)
+	// run the background USB interfacing task (audio sampling is done by interrupt)
 	while (1) {
 		// disable interrupts to prevent race conditions with interrupt handler
 		SREG_save = SREG;
@@ -285,7 +299,7 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS) {
+	if (channelNumber == 0 || channelNumber > num_audio_channels) {
 		SendNAK();
 		return;
 	}
@@ -374,6 +388,10 @@ void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType,
 
 			// cache the value
 			channel_mute[channelNumber - 1] = muted;
+			
+			// update the next channel array for the interrupt handler
+			UpdateNextChannelArray();
+	
 			return;
 		}
 	}
@@ -390,7 +408,7 @@ void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType,
 	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS) {
+	if (channelNumber == 0 || channelNumber > num_audio_channels) {
 		SendNAK();
 		return;
 	}
@@ -523,7 +541,7 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 // 		int i = 0;
 // 		do {
 // 			i++;
-// 			if (i == MAX_AUDIO_CHANNELS)
+// 			if (i == num_audio_channels)
 // 				i = 0;
 // 			if (channel_mute[i]) {
 // 				// send zero length packet (PrevEndpoint is not used)
@@ -546,6 +564,32 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 // 
 // 	Endpoint_SelectEndpoint(PrevEndpoint);
 // }
+
+
+/** Update next_channel array for the interrupt handler.
+ * This involves marking muted channels with -1, and the rest
+ * with the next enabled channel to sample. */
+void UpdateNextChannelArray(void)
+{
+	uint8_t i, j;
+
+	for (i = 0; i < num_audio_channels; ++i) {
+		if (channel_mute[i]) {
+			// if channel is muted the set -1
+			next_channel[i] = -1;
+		}
+		else {
+			// Find the next unmuted channel.
+			// This loop is guaranteed to end, possibly with j equal to i,
+			// but that's fine: it means that i is the only unmuted channel.
+			j = (i + 1) % num_audio_channels;
+			while (channel_mute[j]) {
+				j = (j + 1) % num_audio_channels;
+			}
+			next_channel[i] = j;
+		}
+	}
+}
 
 
 void ConfigureSamplingTimer(uint32_t sampling_frequency)
@@ -588,7 +632,7 @@ uint8_t Volumes_Init(void)
 {
 	uint8_t buf, ret_val = 1;
 	
-	for (uint8_t i = 0; i < MAX_AUDIO_CHANNELS; ++i) {
+	for (uint8_t i = 0; i < num_audio_channels; ++i) {
 		if (!PreAmps_get(i, &buf)) {
 			// use half-max as fall-back if error occurs
 			buf = 128;
