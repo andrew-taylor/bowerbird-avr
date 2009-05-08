@@ -71,7 +71,7 @@ void ADC_Init(void)
 int16_t ADC_ReadSampleAndSetNextAddr2(const uint8_t addr)
 {
 	/* Drop the leading 0 and the three address bits, retaining the 12-bit sample. */
-	/* FIXME verify: the USB spec wants the significant bits left-aligned, formats doc 2.2.2 p9. */
+	/* The USB spec wants the significant bits left-aligned, formats doc 2.2.2 p9. */
 	return ((int16_t)ADC_SendWord(ADC_CR_ADDR(addr))) << 4;
 }
 

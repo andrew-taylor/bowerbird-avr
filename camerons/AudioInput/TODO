@@ -1,4 +1,8 @@
-* get mute working
-* get variable frequency sampling descriptor working
-* get variable frequency sampling working
+* fix initialisation/configuration so it uses the mic/pre-amps defined in Descriptors.c
 * debug why gain setting doesn't always work
+
+Future ideas
+================================
+* Version 2 of the spec (Formats20 final.pdf) supports Extended Audio Data
+Formats, which include the ability to timestamp each sample (e.g. from our GPS)
+* specify microphone coordinates so can use standardised code in ARM?

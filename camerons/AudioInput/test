@@ -17,6 +17,10 @@ do
 		TEST_MODE="$2"
 		shift
 		shift
+	elif [ "$1" == "-a" ]
+	then
+		PLAY_ALL=1
+		shift
 	else
 		break
 	fi
@@ -41,11 +45,16 @@ then
 	then
 		audacity $FILE
 	else
-		for i in `seq 0 $(($CHANNELS-1))`
-		do
-			echo Channel $i
-			aplay -f $FORMAT $@ $FILE.$i
-		done
+		if [ "$PLAY_ALL" ]
+		then
+			for i in `seq 0 $(($CHANNELS-1))`
+			do
+				echo Channel $i
+				aplay -f $FORMAT $@ $FILE.$i
+			done
+		else
+			aplay -f $FORMAT $@ $FILE.0
+		fi
 	fi
 else
 	echo "Capture Failed:"
