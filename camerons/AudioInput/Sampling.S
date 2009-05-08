@@ -36,47 +36,44 @@ TIMER1_COMPA_vect:
 		ldi		temp_reg,				AUDIO_STREAM_EPNUM
 		sts		UENUM,					temp_reg
 
-		/** if audio stream can't be written to, then skip 
+		/** if audio stream can't be written to, then skip
 		 * (this will cause samples to be lost, but there's not much we can do) */
 		lds		temp_reg,				UEINTX
 		sbrs	temp_reg,				RWAL
 		rjmp	end
 
+		/* FIXME load number of channels in this configuration from C variable num_audio_channels */
+		ldi		pair_lsb,				lo8(num_audio_channels)
+		ldi		pair_msb,				hi8(num_audio_channels)
+		ld		num_chans,				pair
+		
 		/* initialise loop */
 		clr		isr_iter
 
 adcloop:
-		/* increment counter and mod MAX_AUDIO_CHANNELS
-		 * because the ADC returns the channel previously requested
-		 * we want to go from 1,2..MAX_AUDIO_CHANNELS-1,0 */
-		inc		isr_iter
-		cpi		isr_iter,				MAX_AUDIO_CHANNELS
-		brne	skip_iter_reset
-		clr		isr_iter
-skip_iter_reset:
-
-		/* if channel is muted then send zeroes */
-		/* load address of element from channel mute array */
-/*		mov		pair_lsb,				isr_iter
+		/** get next channel to read after this one (excluding muted)
+		 * if channel is muted then send zeroes */
+		/* load address of element from next_channel array */
+		mov		pair_lsb,				isr_iter
 		clr		pair_msb
-		subi	pair_lsb,				lo8(-(channel_mute))
-		sbci	pair_msb,				hi8(-(channel_mute))*/
-		/* read mute value from memory address (X is r27:r26) */
-/*		ld		temp_reg,				X
-		tst		temp_reg
-		breq	normal_sample*/
+		subi	pair_lsb,				lo8(-(next_channel))
+		sbci	pair_msb,				hi8(-(next_channel))
+		/* read next channel value from memory address (-1 == mute) */
+		ld		next_chan,				pair
+		cpi		next_chan,				-1
+		brne	normal_sample
 		/* if muted, then load zeroes and skip sampling */
-/*		clr		pair_lsb
+		clr		pair_lsb
 		clr		pair_msb
 		rjmp	send_data
-*/
+
 normal_sample:
-		/* isr_iter is the adc index */
-		/* start of ADC_ReadSampleAndSetNextAddr code */
+		/* next_chan is the adc index of the next channel to read */
+/* start of ADC_ReadSampleAndSetNextAddr code */
 		/* enable nSS (chip select) DD_SS(0) pin on PORTB */
 		cbi		_SFR_IO_ADDR(PORTB),	DD_SS
 		/* load MSB of word to send to ADC */
-		mov		temp_reg,				isr_iter
+		mov		temp_reg,				next_chan
 		andi	temp_reg,				ADC_ADDR_MASK
 		lsl		temp_reg
 		lsl		temp_reg
@@ -112,14 +109,17 @@ lsloop:
 		andi	pair_lsb,				0xF0
 		andi	temp_reg,				0x0F
 		or		pair_msb,				temp_reg
+/* end of ADC_ReadSampleAndSetNextAddr code */
 
 send_data:
 		/* send data to usb (8bit FIFO, so just write twice) */
 		sts		UEDATX,					pair_lsb
 		sts		UEDATX,					pair_msb
 
-		/* loop back while still channels to process (we haven't sent 0) */
-		cp		isr_iter,				__zero_reg__
+		/* increment counter */
+		inc		isr_iter
+		/* loop back while still channels to process */
+		cp		isr_iter,				num_chans
 		brne	adcloop
 /* end of adcloop */
 

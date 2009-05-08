@@ -364,7 +364,7 @@ void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType,
 	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS) {
+	if (channelNumber == 0 || channelNumber > num_audio_channels) {
 		SendNAK();
 		return;
 	}
@@ -586,7 +586,8 @@ void UpdateNextChannelArray(void)
 			while (channel_mute[j]) {
 				j = (j + 1) % num_audio_channels;
 			}
-			next_channel[i] = j;
+			// FIXME this 0 should be the configuration number
+			next_channel[i] = ADC_channels[0][j];
 		}
 	}
 }
