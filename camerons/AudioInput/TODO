@@ -1,5 +1,6 @@
 * fix initialisation/configuration so it uses the mic/pre-amps defined in Descriptors.c
 * debug why gain setting doesn't always work
+* check out if timer interrupt is screwing up gain setting/reading
 
 Future ideas
 ================================

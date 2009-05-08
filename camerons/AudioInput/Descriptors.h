@@ -138,7 +138,7 @@ typedef struct
 
   uint8_t                   ControlSize;
   uint8_t                   MasterControls;
-  uint8_t                   ChannelControls[AUDIO_CHANNELS];
+  uint8_t                   ChannelControls[MAX_AUDIO_CHANNELS];
 
   uint8_t                   FeatureUnitStrIndex;  
 } USB_AudioFeatureUnit_t;

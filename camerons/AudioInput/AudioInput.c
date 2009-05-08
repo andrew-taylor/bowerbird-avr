@@ -77,11 +77,11 @@ HANDLES_EVENT(USB_UnhandledControlPacket);
 // sampling frequency for all channels
 uint32_t audio_sampling_frequency;
 // bool array of whether channels are muted
-uint8_t channel_mute[AUDIO_CHANNELS];
+uint8_t channel_mute[MAX_AUDIO_CHANNELS];
 // channel gains in db
-int16_t channel_volume[AUDIO_CHANNELS];
+int16_t channel_volume[MAX_AUDIO_CHANNELS];
 // bool array of whether channels are set to have automatic gain
-uint8_t channel_automatic_gain[AUDIO_CHANNELS];
+uint8_t channel_automatic_gain[MAX_AUDIO_CHANNELS];
 
 
 // forward declarations
@@ -285,7 +285,7 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > AUDIO_CHANNELS) {
+	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS) {
 		SendNAK();
 		return;
 	}
@@ -350,7 +350,7 @@ void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType,
 	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > AUDIO_CHANNELS) {
+	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS) {
 		SendNAK();
 		return;
 	}
@@ -390,7 +390,7 @@ void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType,
 	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > AUDIO_CHANNELS) {
+	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS) {
 		SendNAK();
 		return;
 	}
@@ -523,7 +523,7 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 // 		int i = 0;
 // 		do {
 // 			i++;
-// 			if (i == AUDIO_CHANNELS)
+// 			if (i == MAX_AUDIO_CHANNELS)
 // 				i = 0;
 // 			if (channel_mute[i]) {
 // 				// send zero length packet (PrevEndpoint is not used)
@@ -588,7 +588,7 @@ uint8_t Volumes_Init(void)
 {
 	uint8_t buf, ret_val = 1;
 	
-	for (uint8_t i = 0; i < AUDIO_CHANNELS; ++i) {
+	for (uint8_t i = 0; i < MAX_AUDIO_CHANNELS; ++i) {
 		if (!PreAmps_get(i, &buf)) {
 			// use half-max as fall-back if error occurs
 			buf = 128;

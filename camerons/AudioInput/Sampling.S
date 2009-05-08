@@ -44,11 +44,11 @@ TIMER1_COMPA_vect:
 		clr 	isr_iter
 
 adcloop:
-		/* increment counter and mod AUDIO_CHANNELS
+		/* increment counter and mod MAX_AUDIO_CHANNELS
 		 * because the ADC returns the channel previously requested
-		 * we want to go from 1,2..AUDIO_CHANNELS-1,0 */
+		 * we want to go from 1,2..MAX_AUDIO_CHANNELS-1,0 */
 		inc		isr_iter
-		cpi		isr_iter,				AUDIO_CHANNELS
+		cpi		isr_iter,				MAX_AUDIO_CHANNELS
 		brne	skip_iter_reset
 		clr		isr_iter
 skip_iter_reset:

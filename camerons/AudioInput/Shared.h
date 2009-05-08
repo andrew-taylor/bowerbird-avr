@@ -1,5 +1,7 @@
 /**
- * Description: Common defines, macros and inline functions for the system
+ * Description: Common defines, and macros for the system.
+ * This file will be #included in assembly so any C-type stuff must be
+ * contained in a #ifndef __ASSEMBLER__ block.
  *
  * Author: Cameron Stone <camerons@cse.unsw.edu.au>, (C) 2009
  *
@@ -8,6 +10,21 @@
 
 #ifndef __SHARED_H__
 #define __SHARED_H__
+
+/** 6 configurations */
+#define NUM_CONFIGURATIONS 2
+
+/** the default sampling frequency for all the microphones
+ * FIXME add preprocessor check to ensure frequency will work */
+#define LOWEST_AUDIO_SAMPLE_FREQUENCY		4000
+#define HIGHEST_AUDIO_SAMPLE_FREQUENCY		80000
+#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      8000
+
+/** maximum 8 audio streams
+ * (can't be more than 8 because we use a single register to cache the
+ * mute bits in the assembly-implemented interrupt handler) */
+#define MAX_AUDIO_CHANNELS 8
+
 
 #define TRUE          1
 #define FALSE         0
@@ -52,22 +69,14 @@
  */
 #ifdef __ASSEMBLER__
 #define usb_ep_save	r17
+#define pair		X
 #define	pair_lsb	r26
 #define	pair_msb	r27
 #define isr_iter	r28
 #define	temp_reg	r29
+#define	num_chans	r30
+#define	next_chan	r31
 #endif /* __ASSEMBLER__ */
-
-
-/** the default sampling frequency for all the microphones
- * FIXME add preprocessor check to ensure frequency will work */
-#define LOWEST_AUDIO_SAMPLE_FREQUENCY		4000
-#define HIGHEST_AUDIO_SAMPLE_FREQUENCY		80000
-#define DEFAULT_AUDIO_SAMPLE_FREQUENCY      8000
-
-
-/** 8 audio streams */
-#define AUDIO_CHANNELS	8
 
 
 /** sample size in bytes, which is sizeof(uint16_t) = 2, but we can't put the
@@ -75,7 +84,7 @@
  * the file (stdint.h) that defines uint16_t because of the typedefs in it.
  */
 #define SAMPLE_SIZE		2
-#define AUDIO_STREAM_FULL_THRESHOLD (AUDIO_STREAM_EPSIZE - ((AUDIO_CHANNELS * SAMPLE_SIZE) - 1))
+#define AUDIO_STREAM_FULL_THRESHOLD (AUDIO_STREAM_EPSIZE - ((MAX_AUDIO_CHANNELS * SAMPLE_SIZE) - 1))
 
 
 /** Name the SPI-specific registers/bits

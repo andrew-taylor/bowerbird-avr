@@ -118,7 +118,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		TerminalID: INPUT_TERMINAL_ID,
 		TerminalType: TERMINAL_IN_MIC_ARRAY,
 		AssociatedOutputTerminal: 0x00,
-		TotalChannels: AUDIO_CHANNELS,
+		TotalChannels: MAX_AUDIO_CHANNELS,
 		ChannelConfig: 0,  // spatial characteristics (0 == unspecified)
 		ChannelStrIndex: NO_DESCRIPTOR_STRING,
 		TerminalStrIndex: NO_DESCRIPTOR_STRING
@@ -137,19 +137,19 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		MasterControls: 0, // master, applies to all channels.
 		ChannelControls: {
 			FEATURE_MUTE | FEATURE_VOLUME,
-#if AUDIO_CHANNELS > 1
+#if MAX_AUDIO_CHANNELS > 1
 			FEATURE_MUTE | FEATURE_VOLUME/* | FEATURE_AUTOMATIC_GAIN*/,
-#if AUDIO_CHANNELS > 2
+#if MAX_AUDIO_CHANNELS > 2
 			FEATURE_MUTE | FEATURE_VOLUME,
-#if AUDIO_CHANNELS > 3
+#if MAX_AUDIO_CHANNELS > 3
 			FEATURE_MUTE | FEATURE_VOLUME /*| FEATURE_AUTOMATIC_GAIN*/,
-#if AUDIO_CHANNELS > 4
+#if MAX_AUDIO_CHANNELS > 4
 			FEATURE_MUTE | FEATURE_VOLUME,
-#if AUDIO_CHANNELS > 5
+#if MAX_AUDIO_CHANNELS > 5
 			FEATURE_MUTE | FEATURE_VOLUME /*| FEATURE_AUTOMATIC_GAIN*/,
-#if AUDIO_CHANNELS > 6
+#if MAX_AUDIO_CHANNELS > 6
 			FEATURE_MUTE | FEATURE_VOLUME,
-#if AUDIO_CHANNELS > 7
+#if MAX_AUDIO_CHANNELS > 7
 			FEATURE_MUTE | FEATURE_VOLUME /*| FEATURE_AUTOMATIC_GAIN*/
 #endif // 7
 #endif // 6
@@ -230,7 +230,7 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM = {
 		},
 		Subtype: DSUBTYPE_Format,
 		FormatType: 0x01,  // FORMAT_TYPE_1
-		Channels: AUDIO_CHANNELS,
+		Channels: MAX_AUDIO_CHANNELS,
 		SubFrameSize: 0x02,  // 2 bytes per sample
 		BitResolution: 0x0C, // We use 12 bits of the 2 bytes
 		SampleFrequencyType: 0, // continous sampling frequency setting supported 
