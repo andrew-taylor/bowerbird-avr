@@ -12,7 +12,7 @@
 #define __SHARED_H__
 
 /** 6 configurations */
-#define NUM_CONFIGURATIONS 2
+#define NUM_CONFIGURATIONS 6
 
 /** the default sampling frequency for all the microphones
  * FIXME add preprocessor check to ensure frequency will work */
@@ -67,13 +67,15 @@
  */
 #ifdef __ASSEMBLER__
 #define usb_ep_save	r17
-#define pair		X
-#define	pair_lsb	r26
-#define	pair_msb	r27
-#define isr_iter	r28
-#define	temp_reg	r29
-#define	num_chans	r30
-#define	next_chan	r31
+#define isr_iter	r18
+#define	temp_reg	r19
+#define	num_chans	r20
+#define	next_chan	r21
+#define write_lsb	r22
+#define	write_msb	r23
+#define read_pair	X
+#define	read_lsb	r26
+#define	read_msb	r27
 #endif /* __ASSEMBLER__ */
 
 
