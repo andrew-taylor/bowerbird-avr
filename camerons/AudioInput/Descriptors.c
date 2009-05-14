@@ -157,12 +157,11 @@ bool USB_GetDescriptor(const uint16_t wValue, const uint8_t wIndex,
 				// default case needed
 				case 0:
 				CONFIG_DESCRIPTOR_CASE(1);
-				CONFIG_DESCRIPTOR_CASE(1);
 				CONFIG_DESCRIPTOR_CASE(2);
 				CONFIG_DESCRIPTOR_CASE(3);
 				CONFIG_DESCRIPTOR_CASE(4);
 				CONFIG_DESCRIPTOR_CASE(5);
-			}
+				CONFIG_DESCRIPTOR_CASE(6);			}
 			break;
 		}
 		case DTYPE_String:
