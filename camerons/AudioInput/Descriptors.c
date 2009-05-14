@@ -39,6 +39,7 @@ upwards-compatible it seems to me.
 */
 
 /* some preprocessor directive to simplify/tidy Descriptors */
+#define TIMES1(x) x
 #define TIMES2(x) x, x
 #define TIMES4(x) x, x, x, x
 #define TIMES8(x) x, x, x, x, x, x, x, x
@@ -83,18 +84,18 @@ USB_Descriptor_Device_t DeviceDescriptor PROGMEM = {
 };
 
 
-USB_Descriptor_Configuration8_t ConfigurationDescriptor0 PROGMEM = 
+USB_Descriptor_Configuration8_t ConfigurationDescriptor1 PROGMEM =
  	CONFIGURATION_DESCRIPTOR(1, 8, TIMES8(FEATURE_MUTE | FEATURE_VOLUME));
-USB_Descriptor_Configuration4_t ConfigurationDescriptor1 PROGMEM =
-	CONFIGURATION_DESCRIPTOR(2, 4, TIMES4(FEATURE_MUTE | FEATURE_VOLUME));
 USB_Descriptor_Configuration4_t ConfigurationDescriptor2 PROGMEM =
+	CONFIGURATION_DESCRIPTOR(2, 4, TIMES4(FEATURE_MUTE | FEATURE_VOLUME));
+USB_Descriptor_Configuration4_t ConfigurationDescriptor3 PROGMEM =
 	CONFIGURATION_DESCRIPTOR(3, 4, TIMES4(FEATURE_MUTE | FEATURE_VOLUME));
-USB_Descriptor_Configuration2_t ConfigurationDescriptor3 PROGMEM =
-	CONFIGURATION_DESCRIPTOR(4, 2, TIMES2(FEATURE_MUTE | FEATURE_VOLUME));
 USB_Descriptor_Configuration2_t ConfigurationDescriptor4 PROGMEM =
+	CONFIGURATION_DESCRIPTOR(4, 2, TIMES2(FEATURE_MUTE | FEATURE_VOLUME));
+USB_Descriptor_Configuration2_t ConfigurationDescriptor5 PROGMEM =
 	CONFIGURATION_DESCRIPTOR(5, 2, TIMES2(FEATURE_MUTE | FEATURE_VOLUME));
-USB_Descriptor_Configuration1_t ConfigurationDescriptor5 PROGMEM =
-	CONFIGURATION_DESCRIPTOR(6, 1, FEATURE_MUTE | FEATURE_VOLUME);
+USB_Descriptor_Configuration1_t ConfigurationDescriptor6 PROGMEM =
+	CONFIGURATION_DESCRIPTOR(6, 1, TIMES1(FEATURE_MUTE | FEATURE_VOLUME));
 
 
 USB_Descriptor_String_t LanguageString PROGMEM = {
@@ -153,7 +154,9 @@ bool USB_GetDescriptor(const uint16_t wValue, const uint8_t wIndex,
 		case DTYPE_Configuration: {
 			uint8_t index = wValue & 0xFF;
 			switch (index) {
-				CONFIG_DESCRIPTOR_CASE(0);
+				// default case needed
+				case 0:
+				CONFIG_DESCRIPTOR_CASE(1);
 				CONFIG_DESCRIPTOR_CASE(1);
 				CONFIG_DESCRIPTOR_CASE(2);
 				CONFIG_DESCRIPTOR_CASE(3);
