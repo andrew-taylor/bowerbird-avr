@@ -25,8 +25,6 @@ TIMER1_COMPA_vect:
 		push	temp_reg
 		push	num_chans
 		push	next_chan
-		push	write_lsb
-		push	write_msb
 		push	read_lsb
 		push	read_msb
 		push	addr_lsb
@@ -46,20 +44,6 @@ TIMER1_COMPA_vect:
 		sbrs	temp_reg,				RWAL
 		rjmp	tidy_up_and_exit
 
-		/* do first read, as the rest will also be sending the data from the previous read */
-		/** get next channel to read after this one (excluding muted)
-		 * if channel is muted then send zeroes */
-		/* load address of element from next_channel array */
-		ldi		addr_lsb,				lo8(next_channel)
-		ldi		addr_msb,				hi8(next_channel)
-		/* read next channel value from memory address (-1 == mute) */
-		ld		write_msb,				addr_pair
-		/* load MSB of word to send to ADC */
-		andi	write_msb,				ADC_ADDR_MASK
-		lsl		write_msb
-		lsl		write_msb
-		ori		write_msb,				ADC_CR_MSB
-
 		/* enable nSS (chip select) DD_SS(0) pin on PORTB */
 		cbi		_SFR_IO_ADDR(PORTB),	DD_SS
 		/* write the MSB to the SPI data register (SPDR) */
@@ -71,11 +55,9 @@ TIMER1_COMPA_vect:
 		ldi		addr_msb,				hi8(num_audio_channels)
 		ld		num_chans,				addr_pair
 				
-		/* load LSB of word to send to ADC (1 cycle) */
-		ldi		write_lsb,				ADC_CR_LSB
-		
-		/* wait for the ADC (11 cycles) */
-		nop
+		/* wait for the ADC (12 cycles) */
+ 		nop
+ 		nop
 		nop
 		nop
 		nop
@@ -116,15 +98,16 @@ TIMER1_COMPA_vect:
 		subi	addr_lsb,				lo8(-(next_channel))
 		sbci	addr_msb,				hi8(-(next_channel))
 		/* read next channel value from memory address (-1 == mute) (2 cycles) */
-		ld		write_msb,				addr_pair
-		/* set up MSB of word to send to ADC (4 cycles) */
-		andi	write_msb,				ADC_ADDR_MASK
-		lsl		write_msb
-		lsl		write_msb
-		ori		write_msb,				ADC_CR_MSB
+		ld		temp_reg,				addr_pair
+		/* set up MSB of word to send to ADC (5 cycles) */
+		andi	temp_reg,				ADC_ADDR_MASK
+		lsl		temp_reg
+		lsl		temp_reg
+		ori		temp_reg,				ADC_CR_MSB
+		mov		write_msb,				temp_reg
 
 		/* wait for the ADC */
-		nop
+		/* (not required at present because we have 16 cycles of instructions) */
 
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
@@ -197,15 +180,16 @@ adcloop:
 		subi	addr_lsb,				lo8(-(next_channel))
 		sbci	addr_msb,				hi8(-(next_channel))
 		/* read next channel value from memory address (-1 == mute) (2 cycles) */
-		ld		write_msb,				addr_pair
-		/* set up MSB of word to send to ADC (4 cycles) */
-		andi	write_msb,				ADC_ADDR_MASK
-		lsl		write_msb
-		lsl		write_msb
-		ori		write_msb,				ADC_CR_MSB
+		ld		temp_reg,				addr_pair
+		/* set up MSB of word to send to ADC (5 cycles) */
+		andi	temp_reg,				ADC_ADDR_MASK
+		lsl		temp_reg
+		lsl		temp_reg
+		ori		temp_reg,				ADC_CR_MSB
+		mov		write_msb,				temp_reg
 
 		/* wait for the ADC */
-		nop
+		/* (not required at present because we have 16 cycles of instructions) */
 
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
@@ -222,17 +206,22 @@ adcloop:
  * but the lsb read/write is only 6 cycles in. We still need to read the lsb,
  * and prepare and send this final sample */
 loop_end:
+		/* setup next first read */
+		/** get next channel to read after this one */
+		/* load address of element from next_channel array (2 cycles)*/
+		ldi		addr_lsb,				lo8(next_channel)
+		ldi		addr_msb,				hi8(next_channel)
+		/* read next channel value from memory address (-1 == mute) (2 cycles)*/
+		ld		temp_reg,				addr_pair
+		/* load MSB of word to send to ADC (5 cycles) */
+		andi	temp_reg,				ADC_ADDR_MASK
+		lsl		temp_reg
+		lsl		temp_reg
+		ori		temp_reg,				ADC_CR_MSB
+		mov		write_msb,				temp_reg
+
 		/* process last data collected */
-		/* wait the remaining 10 cycles */
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
+		/* wait the remaining cycle */
 		nop
 	
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
@@ -277,8 +266,6 @@ tidy_up_and_exit:
 		pop		addr_lsb
 		pop		read_msb
 		pop		read_lsb
-		pop		write_msb
-		pop		write_lsb
 		pop		next_chan
 		pop		num_chans
 		pop		temp_reg

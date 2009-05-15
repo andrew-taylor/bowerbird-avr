@@ -66,18 +66,22 @@
  * Global register variables.
  */
 #ifdef __ASSEMBLER__
-#define usb_ep_save	r17
-#define isr_iter	r18
-#define	temp_reg	r19
-#define	num_chans	r20
-#define	next_chan	r21
-#define write_lsb	r22
-#define	write_msb	r23
+#define usb_ep_save	r18
+#define isr_iter	r19
+#define	temp_reg	r20
+#define	num_chans	r21
+#define	next_chan	r22
+#define write_lsb	r2
+#define	write_msb	r3
 #define	read_lsb	r24
 #define	read_msb	r25
 #define addr_pair	X
 #define	addr_lsb	r26
 #define	addr_msb	r27
+#else
+#include <stdint.h>
+volatile register uint8_t write_lsb asm("r2");
+volatile register uint8_t write_msb asm("r3");
 #endif /* __ASSEMBLER__ */
 
 

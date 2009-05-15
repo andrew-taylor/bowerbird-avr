@@ -609,6 +609,10 @@ void ResetADC(void)
 			break;
 		}
 	}
+
+	/* setup the interrupt handler registers to point to their initial value */
+	write_lsb = ADC_CR_LSB;
+	write_msb = (ADC_CR_MSB | ADC_ADDR(next_channel[0]));
 }
 
 
