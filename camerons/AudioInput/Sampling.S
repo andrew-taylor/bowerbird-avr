@@ -29,6 +29,8 @@ TIMER1_COMPA_vect:
 		push	write_msb
 		push	read_lsb
 		push	read_msb
+		push	addr_lsb
+		push	addr_msb
 
 		/* save current usb endpoint (anded with mask to guarantee safe) */
 		lds		usb_ep_save,			UENUM
@@ -42,16 +44,16 @@ TIMER1_COMPA_vect:
 		 * (this will cause samples to be lost, but there's not much we can do) */
 		lds		temp_reg,				UEINTX
 		sbrs	temp_reg,				RWAL
-		rjmp	end
+		rjmp	tidy_up_and_exit
 
 		/* do first read, as the rest will also be sending the data from the previous read */
 		/** get next channel to read after this one (excluding muted)
 		 * if channel is muted then send zeroes */
 		/* load address of element from next_channel array */
-		ldi		read_lsb,				lo8(next_channel)
-		ldi		read_msb,				hi8(next_channel)
+		ldi		addr_lsb,				lo8(next_channel)
+		ldi		addr_msb,				hi8(next_channel)
 		/* read next channel value from memory address (-1 == mute) */
-		ld		write_msb,				read_pair
+		ld		write_msb,				addr_pair
 		/* load MSB of word to send to ADC */
 		andi	write_msb,				ADC_ADDR_MASK
 		lsl		write_msb
@@ -65,9 +67,9 @@ TIMER1_COMPA_vect:
 		/* we now have 16 cycles to wait */
 				 
 		/* load number of channels in this configuration from C variable num_audio_channels (4 cycles) */
-		ldi		read_lsb,				lo8(num_audio_channels)
-		ldi		read_msb,				hi8(num_audio_channels)
-		ld		num_chans,				read_pair
+		ldi		addr_lsb,				lo8(num_audio_channels)
+		ldi		addr_msb,				hi8(num_audio_channels)
+		ld		num_chans,				addr_pair
 				
 		/* load LSB of word to send to ADC (1 cycle) */
 		ldi		write_lsb,				ADC_CR_LSB
@@ -101,19 +103,20 @@ TIMER1_COMPA_vect:
 
 		/* initialise loop counter to 1 because we've done one already (1 cycle) */
 		ldi		isr_iter,				1
-		/* jump to end if there's only one channel (2 cycles if we're not branching) */
+		/* jump to end if there's only one channel
+		 * (2 cycles if we're not branching, 3 otherwise) */
 		cp		isr_iter,				num_chans
 		breq	loop_end
 
 		/** get next channel to read after this one (excluding muted)
 		 * if channel is muted then send zeroes */
 		/* load address of element from next_channel array (4 cycles) */
-		mov		read_lsb,				isr_iter
-		clr		read_msb
-		subi	read_lsb,				lo8(-(next_channel))
-		sbci	read_msb,				hi8(-(next_channel))
+		mov		addr_lsb,				isr_iter
+		clr		addr_msb
+		subi	addr_lsb,				lo8(-(next_channel))
+		sbci	addr_msb,				hi8(-(next_channel))
 		/* read next channel value from memory address (-1 == mute) (2 cycles) */
-		ld		write_msb,				read_pair
+		ld		write_msb,				addr_pair
 		/* set up MSB of word to send to ADC (4 cycles) */
 		andi	write_msb,				ADC_ADDR_MASK
 		lsl		write_msb
@@ -125,14 +128,15 @@ TIMER1_COMPA_vect:
 
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
-		/* save MSB of return value (from SPDR) */
+		/* save LSB of return value (from SPDR) */
 		lds		read_lsb,				SPDR
 		
 		/* disable nSS (chip select) DD_SS(0) pin on PORTB */
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 
 /** at the beginning of each of these loops write_msb/lsb are setup with the
- * word to send to the ADC, and read_msb/lsb contain the last word read back */
+ * word to send to the ADC, and read_msb/lsb contain the previous word read back
+ * (though msb has already been left shifted x4) */
 adcloop:
 		/* enable nSS (chip select) DD_SS(0) pin on PORTB */
 		cbi		_SFR_IO_ADDR(PORTB),	DD_SS
@@ -141,8 +145,9 @@ adcloop:
 		sts		SPDR,					write_msb
 		/* we now have 16 cycles to wait */
 
-		/* rearrange the previous ADC response to USB audio format (left shift the word 4x, padding with 0s)
-		/* shift 4x to the left, with overflow going into MSB (5 cycles)*/
+		/* rearrange the previous ADC response to USB audio format
+		 * (flushed left, padding with 0s)
+		 * shift 4x to the left, with overflow going into MSB (5 cycles) */
 		swap	read_lsb
 		mov		temp_reg,				read_lsb
 		andi	read_lsb,				0xF0
@@ -166,9 +171,6 @@ adcloop:
 		lds		temp_reg,				SPSR
 		/* save MSB of return value (from SPDR) */
 		lds		read_msb,				SPDR
-		/* shift 4x to the left, discarding overflow (faster to swap & mask) */
-		swap	read_msb
-		andi	read_msb,				0xF0
 
 /* ADC little byte read/write */
 		/* write the LSB to the SPI data register (SPDR) */
@@ -180,21 +182,22 @@ adcloop:
 		swap	read_msb
 		andi	read_msb,				0xF0
 
-		/* increment loop counter */
+		/* increment loop counter (1 cycle) */
 		inc		isr_iter
-		/* jump to end if there's only one channel (2 cycles if we're not branching) */
+		/* jump to end if there's no more channels
+		 * (2 cycles if we're not branching, 3 otherwise) */
 		cp		isr_iter,				num_chans
 		breq	loop_end
 
 		/** get next channel to read after this one (excluding muted)
 		 * if channel is muted then send zeroes */
 		/* load address of element from next_channel array (4 cycles) */
-		mov		read_lsb,				isr_iter
-		clr		read_msb
-		subi	read_lsb,				lo8(-(next_channel))
-		sbci	read_msb,				hi8(-(next_channel))
+		mov		addr_lsb,				isr_iter
+		clr		addr_msb
+		subi	addr_lsb,				lo8(-(next_channel))
+		sbci	addr_msb,				hi8(-(next_channel))
 		/* read next channel value from memory address (-1 == mute) (2 cycles) */
-		ld		write_msb,				read_pair
+		ld		write_msb,				addr_pair
 		/* set up MSB of word to send to ADC (4 cycles) */
 		andi	write_msb,				ADC_ADDR_MASK
 		lsl		write_msb
@@ -215,12 +218,12 @@ adcloop:
 		/* loop to top (we break out of the loop elsewhere) */
 		rjmp	adcloop
 
+/* We arrive here with the msb read/write of the last sample already done,
+ * but the lsb read/write is only 6 cycles in. We still need to read the lsb,
+ * and prepare and send this final sample */
 loop_end:
 		/* process last data collected */
-		/* wait the remaining 13 cycles */
-		nop
-		nop
-		nop
+		/* wait the remaining 10 cycles */
 		nop
 		nop
 		nop
@@ -247,8 +250,6 @@ loop_end:
 		andi	read_lsb,				0xF0
 		andi	temp_reg,				0x0F
 		or		read_msb,				temp_reg
-/*		ldi 	read_lsb, 0
-		ldi		read_msb, 0*/
 		
 		/* send data to usb (8bit FIFO, so just write twice) */
 		sts		UEDATX,					read_lsb
@@ -256,22 +257,24 @@ loop_end:
 		
 send_buffer_to_host:
 		/* if buffer is just about full, then send it to the host */
-		lds		read_lsb,				UEBCLX
-		lds		read_msb,				UEBCHX
-		cpi		read_lsb,				AUDIO_STREAM_FULL_THRESHOLD
-		cpc		read_msb,				__zero_reg__
-		brlo	end
+		lds		addr_lsb,				UEBCLX
+		lds		addr_msb,				UEBCHX
+		cpi		addr_lsb,				AUDIO_STREAM_FULL_THRESHOLD
+		cpc		addr_msb,				__zero_reg__
+		brlo	tidy_up_and_exit
 		
 		/* send to host (clear FIFOCON bit in UEINTX) */
 		lds		temp_reg,				UEINTX
 		cbr		temp_reg,				FIFOCON_MASK
 		sts		UEINTX,					temp_reg
 
-end:
+tidy_up_and_exit:
 		/* restore previous endpoint */
 		sts		UENUM,					usb_ep_save
 
 		/* restore registers */
+		pop		addr_msb
+		pop		addr_lsb
 		pop		read_msb
 		pop		read_lsb
 		pop		write_msb

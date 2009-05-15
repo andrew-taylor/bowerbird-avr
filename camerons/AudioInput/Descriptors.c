@@ -57,7 +57,8 @@ uint8_t ADC_channels[NUM_CONFIGURATIONS][MAX_AUDIO_CHANNELS] = {
 		{ 0, 1, 2, 3, 0, 0, 0, 0 },
 		{ 0, 2, 0, 0, 0, 0, 0, 0 },
 		{ 0, 1, 0, 0, 0, 0, 0, 0 },
-		{ 0, 0, 0, 0, 0, 0, 0, 0 } };
+		{ 0, 0, 0, 0, 0, 0, 0, 0 }
+};
 
 
 USB_Descriptor_Device_t DeviceDescriptor PROGMEM = {
@@ -161,7 +162,8 @@ bool USB_GetDescriptor(const uint16_t wValue, const uint8_t wIndex,
 				CONFIG_DESCRIPTOR_CASE(3);
 				CONFIG_DESCRIPTOR_CASE(4);
 				CONFIG_DESCRIPTOR_CASE(5);
-				CONFIG_DESCRIPTOR_CASE(6);			}
+				CONFIG_DESCRIPTOR_CASE(6);
+			}
 			break;
 		}
 		case DTYPE_String:

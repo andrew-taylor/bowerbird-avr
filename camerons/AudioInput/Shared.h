@@ -17,7 +17,7 @@
 /** the default sampling frequency for all the microphones
  * FIXME add preprocessor check to ensure frequency will work */
 #define LOWEST_AUDIO_SAMPLE_FREQUENCY		4000
-#define HIGHEST_AUDIO_SAMPLE_FREQUENCY		80000
+#define HIGHEST_AUDIO_SAMPLE_FREQUENCY		120000
 #define DEFAULT_AUDIO_SAMPLE_FREQUENCY      8000
 
 /** maximum number of audio streams (this is hardware-limited) */
@@ -73,9 +73,11 @@
 #define	next_chan	r21
 #define write_lsb	r22
 #define	write_msb	r23
-#define read_pair	X
-#define	read_lsb	r26
-#define	read_msb	r27
+#define	read_lsb	r24
+#define	read_msb	r25
+#define addr_pair	X
+#define	addr_lsb	r26
+#define	addr_msb	r27
 #endif /* __ASSEMBLER__ */
 
 
