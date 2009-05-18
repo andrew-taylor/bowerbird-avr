@@ -30,8 +30,7 @@
 
 #include "../LowLevel/USBMode.h"
 #include "USBInterrupt.h"
-
-int usb_general_interrupt_count;
+#include "../../../../camerons/AudioInput/Shared.h"
 
 void USB_INT_DisableAllInterrupts(void)
 {
@@ -67,10 +66,10 @@ void USB_INT_ClearAllInterrupts(void)
 	#endif
 }
 
-ISR(USB_GEN_vect)
-{
-	usb_general_interrupt_count++;
-}
+// ISR(USB_GEN_vect)
+// {
+// 	usb_general_interrupt_count++;
+// }
 
 bool USB_General_Interrupt_Requires_Processing(void)
 {

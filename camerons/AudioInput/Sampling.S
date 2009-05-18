@@ -11,6 +11,11 @@
 __tmp_reg__ = 0
 __zero_reg__ = 1
 
+.global USB_GEN_vect
+USB_GEN_vect:
+		inc		usb_general_interrupt_count
+		reti
+
 .global	TIMER1_COMPA_vect
 TIMER1_COMPA_vect:
 		/* push our working registers onto the stack */
