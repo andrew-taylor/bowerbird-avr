@@ -108,9 +108,18 @@
 #define SAMPLE_FREQ(x) { LowWord: SAMPLE_FREQ_LOW_WORD(x), HighByte: SAMPLE_FREQ_HIGH_BYTE(x)}
 
 // Terminal IDs.
-#define INPUT_TERMINAL_ID  0x01
-#define FEATURE_UNIT_ID    0x02
-#define OUTPUT_TERMINAL_ID 0x03
+#define INPUT_TERMINAL_ID1	0x01
+#define INPUT_TERMINAL_ID2	0x02
+#define INPUT_TERMINAL_ID4	0x03
+#define INPUT_TERMINAL_ID8	0x04
+#define FEATURE_UNIT_ID1	0x05
+#define FEATURE_UNIT_ID2	0x06
+#define FEATURE_UNIT_ID4	0x07
+#define FEATURE_UNIT_ID8	0x08
+#define OUTPUT_TERMINAL_ID1	0x09
+#define OUTPUT_TERMINAL_ID2	0x0A
+#define OUTPUT_TERMINAL_ID4	0x0B
+#define OUTPUT_TERMINAL_ID8	0x0C
 
 /* Type Defines: */
 
@@ -233,219 +242,62 @@ typedef struct
   uint16_t                  LockDelay;
 } USB_AudioStreamEndpoint_Spc_t;	
 
+
 // Configuration Descriptor
-// This is horrible, but it needs to be statically sized so it can be
-// crammed into PROGMEM easily.
-#define DESCRIPTOR_CONFIGURATION_STRUCT(xxxNUM_CHANNELSxxx) typedef struct \
-{ \
-  USB_Descriptor_Configuration_Header_t Config; \
-  USB_Descriptor_Interface_t            AudioControlInterface; \
-  USB_AudioInterface_AC_t               AudioControlInterface_SPC; /* lists terminals, etc. */ \
-  USB_AudioInputTerminal_t              InputTerminal; /* from the mics. */ \
-  USB_AudioFeatureUnit ## xxxNUM_CHANNELSxxx ## _t               FeatureUnit; /* pre-amp controls */ \
-  USB_AudioOutputTerminal_t             OutputTerminal; /* mandatory, not used. */ \
-  USB_Descriptor_Interface_t            AudioStreamInterface_Alt0; /* isochronous endpoint */ \
-  USB_Descriptor_Interface_t            AudioStreamInterface_Alt1;  /* non-isochronous endpoint, chosen if we lack bandwidth. */ \
-  USB_AudioInterface_AS_t               AudioStreamInterface_SPC; /* describes the audio stream */ \
-  USB_AudioFormat_t                     AudioFormat; /* format of the audio stream */ \
-  USB_AudioStreamEndpoint_Std_t         AudioEndpoint; /* isochronous endpoint */ \
-  USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC; /* audio-class specifics of the endpoint */ \
-} USB_Descriptor_Configuration ## xxxNUM_CHANNELSxxx ## _t
-
-DESCRIPTOR_CONFIGURATION_STRUCT(8);
-DESCRIPTOR_CONFIGURATION_STRUCT(4);
-DESCRIPTOR_CONFIGURATION_STRUCT(2);
-DESCRIPTOR_CONFIGURATION_STRUCT(1);
-
-#define CONFIGURATION_DESCRIPTOR(xxxCONFIGURATION_NUMBERxxx, xxxNUM_CHANNELSxxx, xxxCHANNEL_FEATURESxxx) \
-	{ \
-		Config: { \
-			Header: { \
-				Size: sizeof(USB_Descriptor_Configuration_Header_t), \
-				Type: DTYPE_Configuration \
-			}, \
-			TotalConfigurationSize: sizeof(USB_Descriptor_Configuration ## xxxNUM_CHANNELSxxx ## _t), \
-			TotalInterfaces: 2, \
-			ConfigurationNumber: xxxCONFIGURATION_NUMBERxxx, \
-			ConfigurationStrIndex: NO_DESCRIPTOR_STRING, \
-			ConfigAttributes: USB_CONFIG_ATTR_BUSPOWERED, /* just bus-powered. */ \
-			MaxPowerConsumption: USB_CONFIG_POWER_MA(100) \
-		}, \
-		/* mandatory audio control interface. */ \
-		AudioControlInterface: { \
-			Header: { \
-				Size: sizeof(USB_Descriptor_Interface_t), \
-				Type: DTYPE_Interface \
-			}, \
-			InterfaceNumber: 0, \
-			AlternateSetting: 0, \
-			TotalEndpoints: 0,  /* 0 according to the spec, unless we use interrupts. */ \
-			Class: 0x01, \
-			SubClass: 0x01, \
-			Protocol: 0x00, \
-			InterfaceStrIndex: NO_DESCRIPTOR_STRING \
-		}, \
-\
-		/* specifics of the audio control interface */ \
-		AudioControlInterface_SPC: { \
-			Header: { \
-				Size: sizeof(USB_AudioInterface_AC_t), \
-				Type: DTYPE_AudioInterface \
-			}, \
-			Subtype: DSUBTYPE_Header, \
-			ACSpecification: VERSION_BCD(01.00), /* follows the audio spec 1.0 */ \
-			TotalLength: (sizeof(USB_AudioInterface_AC_t) \
-					+ sizeof(USB_AudioInputTerminal_t) \
-					+ sizeof(USB_AudioFeatureUnit ## xxxNUM_CHANNELSxxx ## _t) \
-					+ sizeof(USB_AudioOutputTerminal_t)), \
-			InCollection: 1,  /* 1 streaming interface */ \
-			InterfaceNumbers: { 1 },   /* interface 1 is the stream */ \
-		}, \
-\
-		/* We have one audio cluster, specified as an array of microphones */ \
-		InputTerminal: { \
-			Header: { \
-				Size: sizeof(USB_AudioInputTerminal_t), \
-				Type: DTYPE_AudioInterface \
-			}, \
-			Subtype: DSUBTYPE_InputTerminal, \
-			TerminalID: INPUT_TERMINAL_ID, \
-			TerminalType: TERMINAL_IN_MIC_ARRAY, \
-			AssociatedOutputTerminal: 0x00, \
-			TotalChannels: xxxNUM_CHANNELSxxx, \
-			ChannelConfig: 0,  /* spatial characteristics (0 == unspecified) */ \
-			ChannelStrIndex: NO_DESCRIPTOR_STRING, \
-			TerminalStrIndex: NO_DESCRIPTOR_STRING \
-		}, \
-\
-		/* Provide access to the pre-amps via a "feature unit". */ \
-		FeatureUnit: { \
-			Header: { \
-				Size: sizeof(USB_AudioFeatureUnit ## xxxNUM_CHANNELSxxx ## _t), \
-				Type: DTYPE_AudioInterface \
-			}, \
-			Subtype: DSUBTYPE_FeatureUnit, \
-			UnitID: FEATURE_UNIT_ID, \
-			SourceID: INPUT_TERMINAL_ID, \
-			ControlSize: 1,  /* the controls are described with one byte. */ \
-			MasterControls: 0, /* master, applies to all channels. */ \
-			ChannelControls: { \
-				xxxCHANNEL_FEATURESxxx \
-			},  /* per-channel controls, one entry per channel */ \
-			FeatureUnitStrIndex: NO_DESCRIPTOR_STRING \
-		}, \
-\
-		/* mandatory output terminal. */ \
-		OutputTerminal: { \
-			Header: { \
-				Size: sizeof(USB_AudioOutputTerminal_t), \
-				Type: DTYPE_AudioInterface \
-			}, \
-			Subtype: DSUBTYPE_OutputTerminal, \
-			TerminalID: OUTPUT_TERMINAL_ID, \
-			TerminalType: TERMINAL_STREAMING, \
-			AssociatedInputTerminal: 0x00, \
-			SourceID: FEATURE_UNIT_ID, /* source from the feature unit */ \
-			TerminalStrIndex: NO_DESCRIPTOR_STRING \
-		}, \
-\
-		/* the audio stream interface (non-isochronous) */ \
-		/* alternate 0 without endpoint (no audio available to usb host) */ \
-		AudioStreamInterface_Alt0: { \
-			Header: { \
-				Size: sizeof(USB_Descriptor_Interface_t), \
-				Type: DTYPE_Interface \
-			}, \
-			InterfaceNumber: 1, \
-			AlternateSetting: 0, \
-			TotalEndpoints: 0, \
-			Class: 0x01, \
-			SubClass: 0x02, \
-			Protocol: 0x00, \
-			InterfaceStrIndex: NO_DESCRIPTOR_STRING \
-		}, \
-\
-		/* mandatory actual audio stream interface (isochronous) */ \
-		/* alternate 1 with actual audio on it. */ \
-		AudioStreamInterface_Alt1: { \
-			Header: { \
-				Size: sizeof(USB_Descriptor_Interface_t), \
-				Type: DTYPE_Interface \
-			}, \
-			InterfaceNumber: 1, \
-			AlternateSetting: 1, \
-			TotalEndpoints: 1, \
-			Class: 0x01, \
-			SubClass: 0x02, \
-			Protocol: 0x00, \
-			InterfaceStrIndex: NO_DESCRIPTOR_STRING \
-		}, \
-\
-		/* audio stream interface specifics */ \
-		AudioStreamInterface_SPC: { \
-			Header: { \
-				Size: sizeof(USB_AudioInterface_AS_t), \
-				Type: DTYPE_AudioInterface \
-			}, \
-			Subtype: DSUBTYPE_General, \
-			TerminalLink: OUTPUT_TERMINAL_ID,  /* the stream comes from the output terminal, after the feature unit */ \
-			FrameDelay: 1,   /* interface delay (p22 of Audio20 final.pdf) */ \
-			AudioFormat: 0x0001  /* 16bit PCM format */ \
-		}, \
-\
-		/* FIXME this is where we say what the samples look like. */ \
-		/* 16 bit samples, XX channels, XXXX samples/sec (in Descriptors.h) */ \
-		/* Info in the USB Audio Formats document. */ \
-		AudioFormat: { \
-			Header: { \
-				Size: sizeof(USB_AudioFormat_t), \
-				Type: DTYPE_AudioInterface \
-			}, \
-			Subtype: DSUBTYPE_Format, \
-			FormatType: 0x01,  /* FORMAT_TYPE_1 */ \
-			Channels: xxxNUM_CHANNELSxxx, \
-			SubFrameSize: 0x02,  /* 2 bytes per sample */ \
-			BitResolution: 0x0C, /* We use 12 bits of the 2 bytes */ \
-			SampleFrequencyType: 0, /* continous sampling frequency setting supported */ \
-			SampleFrequencies: { \
-				SAMPLE_FREQ(LOWEST_AUDIO_SAMPLE_FREQUENCY), \
-				SAMPLE_FREQ(HIGHEST_AUDIO_SAMPLE_FREQUENCY) \
-			} \
-		}, \
-\
-		/* The actual isochronous audio sample endpoint. */ \
-		AudioEndpoint: { \
-			Endpoint: { \
-				Header: { \
-					Size: sizeof(USB_AudioStreamEndpoint_Std_t), \
-					Type: DTYPE_Endpoint \
-				}, \
-				EndpointAddress: (ENDPOINT_DESCRIPTOR_DIR_IN | AUDIO_STREAM_EPNUM), \
-				Attributes: (EP_TYPE_ISOCHRONOUS | ENDPOINT_ATTR_ASYNC), /* | ENDPOINT_USAGE_DATA), */ \
-				EndpointSize: AUDIO_STREAM_EPSIZE, /* packet size per polling interval (256 bytes) */ \
-				PollingIntervalMS: 1 /* USB polling rate. I believe this is fixed. */ \
-			}, \
-			Refresh: 0, \
-			SyncEndpointNumber: 0 \
-		}, \
-\
-		/* specifics of the isochronous endpoint. */ \
-		AudioEndpoint_SPC: { \
-			Header: { \
-				Size: sizeof(USB_AudioStreamEndpoint_Spc_t), \
-				Type: DTYPE_AudioEndpoint \
-			}, \
-			Subtype: DSUBTYPE_General, \
-			Attributes: EP_CS_ATTR_SAMPLE_RATE, \
-			LockDelayUnits: 0x02,  /* FIXME reserved value for PCM streams? */ \
-			LockDelay: 0x0000  /* 0 for async streams */ \
-		} \
-	}
+typedef struct
+{
+  USB_Descriptor_Configuration_Header_t Config;
+  USB_Descriptor_Interface_t            AudioControlInterface;
+  USB_AudioInterface_AC_t               AudioControlInterface_SPC; /* lists terminals, etc. */
+  USB_AudioInputTerminal_t              InputTerminal1; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal2; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal4; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal8; /* from the mics. */
+  USB_AudioFeatureUnit1_t               FeatureUnit1; /* pre-amp controls */
+  USB_AudioFeatureUnit2_t               FeatureUnit2; /* pre-amp controls */
+  USB_AudioFeatureUnit4_t               FeatureUnit4; /* pre-amp controls */
+  USB_AudioFeatureUnit8_t               FeatureUnit8; /* pre-amp controls */
+  USB_AudioOutputTerminal_t             OutputTerminal1; /* mandatory, not used. */
+  USB_AudioOutputTerminal_t             OutputTerminal2; /* mandatory, not used. */
+  USB_AudioOutputTerminal_t             OutputTerminal4; /* mandatory, not used. */
+  USB_AudioOutputTerminal_t             OutputTerminal8; /* mandatory, not used. */
+  USB_Descriptor_Interface_t            AudioStreamInterface_Alt0; /* isochronous endpoint */
+  USB_Descriptor_Interface_t            AudioStreamInterface_Alt1;  /* non-isochronous endpoint, chosen if we lack bandwidth. */
+  USB_AudioInterface_AS_t               AudioStreamInterface_SPC1; /* describes the audio stream */
+  USB_AudioFormat_t                     AudioFormat1; /* format of the audio stream */
+  USB_AudioStreamEndpoint_Std_t         AudioEndpoint1; /* isochronous endpoint */
+  USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC1; /* audio-class specifics of the endpoint */
+  USB_Descriptor_Interface_t            AudioStreamInterface_Alt2;  /* non-isochronous endpoint, chosen if we lack bandwidth. */
+  USB_AudioInterface_AS_t               AudioStreamInterface_SPC2; /* describes the audio stream */
+  USB_AudioFormat_t                     AudioFormat2; /* format of the audio stream */
+  USB_AudioStreamEndpoint_Std_t         AudioEndpoint2; /* isochronous endpoint */
+  USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC2; /* audio-class specifics of the endpoint */
+  USB_Descriptor_Interface_t            AudioStreamInterface_Alt3;  /* non-isochronous endpoint, chosen if we lack bandwidth. */
+  USB_AudioInterface_AS_t               AudioStreamInterface_SPC3; /* describes the audio stream */
+  USB_AudioFormat_t                     AudioFormat3; /* format of the audio stream */
+  USB_AudioStreamEndpoint_Std_t         AudioEndpoint3; /* isochronous endpoint */
+  USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC3; /* audio-class specifics of the endpoint */
+  USB_Descriptor_Interface_t            AudioStreamInterface_Alt4;  /* non-isochronous endpoint, chosen if we lack bandwidth. */
+  USB_AudioInterface_AS_t               AudioStreamInterface_SPC4; /* describes the audio stream */
+  USB_AudioFormat_t                     AudioFormat4; /* format of the audio stream */
+  USB_AudioStreamEndpoint_Std_t         AudioEndpoint4; /* isochronous endpoint */
+  USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC4; /* audio-class specifics of the endpoint */
+  USB_Descriptor_Interface_t            AudioStreamInterface_Alt5;  /* non-isochronous endpoint, chosen if we lack bandwidth. */
+  USB_AudioInterface_AS_t               AudioStreamInterface_SPC5; /* describes the audio stream */
+  USB_AudioFormat_t                     AudioFormat5; /* format of the audio stream */
+  USB_AudioStreamEndpoint_Std_t         AudioEndpoint5; /* isochronous endpoint */
+  USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC5; /* audio-class specifics of the endpoint */
+  USB_Descriptor_Interface_t            AudioStreamInterface_Alt6;  /* non-isochronous endpoint, chosen if we lack bandwidth. */
+  USB_AudioInterface_AS_t               AudioStreamInterface_SPC6; /* describes the audio stream */
+  USB_AudioFormat_t                     AudioFormat6; /* format of the audio stream */
+  USB_AudioStreamEndpoint_Std_t         AudioEndpoint6; /* isochronous endpoint */
+  USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC6; /* audio-class specifics of the endpoint */
+} USB_Descriptor_Configuration_t;
 
 
 /** expose public variables */ 
-extern uint8_t num_channels[NUM_CONFIGURATIONS];
-extern uint8_t ADC_channels[NUM_CONFIGURATIONS][MAX_AUDIO_CHANNELS];
+extern uint8_t num_channels[NUM_ALTERNATE_SETTINGS];
+extern uint8_t ADC_channels[NUM_ALTERNATE_SETTINGS][MAX_AUDIO_CHANNELS];
 
 
 /** Function Prototypes: */

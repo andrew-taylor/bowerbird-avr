@@ -81,11 +81,11 @@ uint8_t next_channel[MAX_AUDIO_CHANNELS];
 uint32_t audio_sampling_frequency;
 // bool array of whether channels are muted
 // FIXME remove this and use the information in next_channel
-uint8_t channel_mute[MAX_AUDIO_CHANNELS];
+// uint8_t channel_mute[MAX_AUDIO_CHANNELS];
 // channel gains in db
 int16_t channel_volume[MAX_AUDIO_CHANNELS];
 // bool array of whether channels are set to have automatic gain (not currently used)
-uint8_t channel_automatic_gain[MAX_AUDIO_CHANNELS];
+// uint8_t channel_automatic_gain[MAX_AUDIO_CHANNELS];
 
 
 // forward declarations
@@ -97,9 +97,9 @@ void StopSamplingTimer(void);
 uint8_t Volumes_Init(void);
 static inline int16_t ConvertByteToVolume(uint8_t byte);
 static inline uint8_t ConvertVolumeToByte(int16_t volume);
-void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
+// void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
 void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
-void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
+// void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
 void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType);
 static inline void SendNAK(void);
 static inline void ShowVal(uint16_t val);
@@ -137,10 +137,6 @@ void main(void)
 	// read all the volume values from the digital pots
 	Volumes_Init();
 
-	// set up the next channel array for the interrupt handler
-	// FIXME this should also be called when configuration changes
-	UpdateNextChannelArray();
-	
 	/* Initialize USB Subsystem */
 	// FIXME disable USB gen vect, and poll for it in the loop below
 	USB_Init();
@@ -180,10 +176,7 @@ EVENT_HANDLER(USB_Connect)
 
 EVENT_HANDLER(USB_Disconnect)
 {
-	/* Stop running audio and USB management tasks */
-// 	Scheduler_SetTaskMode(USB_USBTask, TASK_STOP);
-
-	/* Stop the sample reload timer */
+	/* Stop the sample reload timer (if it's running) */
 	StopSamplingTimer();
 }
 
@@ -192,14 +185,8 @@ EVENT_HANDLER(USB_ConfigurationChanged)
 {
 	/* Setup audio stream endpoint */
 	Endpoint_ConfigureEndpoint(AUDIO_STREAM_EPNUM, EP_TYPE_ISOCHRONOUS,
-							   ENDPOINT_DIR_IN, AUDIO_STREAM_EPSIZE,
-							   ENDPOINT_BANK_DOUBLE);
-	
-	// update cached & pre-calculated values
-	active_config = USB_ConfigurationNumber - 1;
-	num_audio_channels = num_channels[active_config];
-	UpdateNextChannelArray();
-	ResetADC();
+			ENDPOINT_DIR_IN, AUDIO_STREAM_EPSIZE,
+			ENDPOINT_BANK_DOUBLE);
 }
 
 
@@ -234,22 +221,25 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 			// get the entity id
 			entityID  = wIndex >> 8;
 			
-			if (entityID == FEATURE_UNIT_ID) {
+			if (entityID == FEATURE_UNIT_ID1
+					|| entityID == FEATURE_UNIT_ID2
+					|| entityID == FEATURE_UNIT_ID4
+					|| entityID == FEATURE_UNIT_ID8) {
 				// determine the relevant control type
 				controlSelector = wValue >> 8;
 				// determine the channel
 				channelNumber   = wValue & 0xFF;
 				
 				switch (controlSelector) {
-					case FEATURE_MUTE:
+/*					case FEATURE_MUTE:
 						ProcessMuteRequest(bRequest, bmRequestType, channelNumber);
-						break;
+						break;*/
 					case FEATURE_VOLUME:
 						ProcessVolumeRequest(bRequest, bmRequestType, channelNumber);
 						break;
-					case FEATURE_AUTOMATIC_GAIN:
+/*					case FEATURE_AUTOMATIC_GAIN:
 						ProcessAutomaticGainRequest(bRequest, bmRequestType, channelNumber);
-						break;
+						break;*/
 					default:
 						SendNAK();
 						return;
@@ -271,6 +261,11 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 					/* Clear the audio isochronous endpoint buffer. */
 					Endpoint_ResetFIFO(AUDIO_STREAM_EPNUM);
 
+					// update cached & pre-calculated values
+					active_config = wValue - 1;
+					num_audio_channels = num_channels[active_config];
+					// set up the next channel array for the interrupt handler
+					UpdateNextChannelArray();
 					/* Tell the ADC to sample the first unmuted channel on the next read. */
 					ResetADC();
 
@@ -302,7 +297,7 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > num_audio_channels) {
+	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS /*num_audio_channels*/) {
 		SendNAK();
 		return;
 	}
@@ -362,91 +357,91 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 }
 
 
-void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType,
-		uint8_t channelNumber)
-{
-	uint8_t muted;
-	
-	// FIXME no master control.
-	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > num_audio_channels) {
-		SendNAK();
-		return;
-	}
+// void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType,
+// 		uint8_t channelNumber)
+// {
+// 	uint8_t muted;
+// 	
+// 	// FIXME no master control.
+// 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
+// 	if (channelNumber == 0 || channelNumber > num_audio_channels) {
+// 		SendNAK();
+// 		return;
+// 	}
+// 
+// 	// find out if its a "get" or a "set" request
+// 	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
+// 		if (bRequest == AUDIO_REQ_GET_Cur) {
+// 			muted = channel_mute[channelNumber - 1];
+// 			Endpoint_ClearSetupReceived();
+// 			Endpoint_Write_Control_Stream(&muted, sizeof(muted));
+// 			Endpoint_ClearSetupOUT();
+// 			return;
+// 		}
+// 	}
+// 	else {
+// 		if (bRequest == AUDIO_REQ_SET_Cur) {
+// 			// A request for the current setting of a particular channel's input gain.
+// 			Endpoint_ClearSetupReceived();
+// 			Endpoint_Read_Control_Stream(&muted, sizeof(muted));
+// 			Endpoint_ClearSetupIN();
+// 
+// 			// cache the value
+// 			channel_mute[channelNumber - 1] = muted;
+// 			
+// 			// update the next channel array for the interrupt handler
+// 			UpdateNextChannelArray();
+// 
+// 			// reset the ADC's next read just in case it changed due to this (un)muting
+// 			ResetADC();
+// 	
+// 			return;
+// 		}
+// 	}
+// 
+// 	// FIXME send NAK?
+// 	SendNAK();
+// }
 
-	// find out if its a "get" or a "set" request
-	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
-		if (bRequest == AUDIO_REQ_GET_Cur) {
-			muted = channel_mute[channelNumber - 1];
-			Endpoint_ClearSetupReceived();
-			Endpoint_Write_Control_Stream(&muted, sizeof(muted));
-			Endpoint_ClearSetupOUT();
-			return;
-		}
-	}
-	else {
-		if (bRequest == AUDIO_REQ_SET_Cur) {
-			/* A request for the current setting of a particular channel's input gain. */
-			Endpoint_ClearSetupReceived();
-			Endpoint_Read_Control_Stream(&muted, sizeof(muted));
-			Endpoint_ClearSetupIN();
 
-			// cache the value
-			channel_mute[channelNumber - 1] = muted;
-			
-			// update the next channel array for the interrupt handler
-			UpdateNextChannelArray();
-
-			// reset the ADC's next read just in case it changed due to this (un)muting
-			ResetADC();
-	
-			return;
-		}
-	}
-
-	// FIXME send NAK?
-	SendNAK();
-}
-
-
-void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType,
-		uint8_t channelNumber)
-{
-	uint8_t auto_gain;
-	
-	// FIXME no master control.
-	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > num_audio_channels) {
-		SendNAK();
-		return;
-	}
-
-	// find out if its a "get" or a "set" request
-	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
-		if (bRequest == AUDIO_REQ_GET_Cur) {
-			auto_gain = channel_automatic_gain[channelNumber - 1];
-			Endpoint_ClearSetupReceived();
-			Endpoint_Write_Control_Stream(&auto_gain, sizeof(auto_gain));
-			Endpoint_ClearSetupOUT();
-			return;
-		}
-	}
-	else {
-		if (bRequest == AUDIO_REQ_SET_Cur) {
-			/* A request for the current setting of a particular channel's input gain. */
-			Endpoint_ClearSetupReceived();
-			Endpoint_Read_Control_Stream(&auto_gain, sizeof(auto_gain));
-			Endpoint_ClearSetupIN();
-
-			// cache the value
-			channel_automatic_gain[channelNumber - 1] = auto_gain;
-			return;
-		}
-	}
-
-	// FIXME send NAK?
-	SendNAK();
-}
+// void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType,
+// 		uint8_t channelNumber)
+// {
+// 	uint8_t auto_gain;
+// 	
+// 	// FIXME no master control.
+// 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
+// 	if (channelNumber == 0 || channelNumber > num_audio_channels) {
+// 		SendNAK();
+// 		return;
+// 	}
+// 
+// 	// find out if its a "get" or a "set" request
+// 	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
+// 		if (bRequest == AUDIO_REQ_GET_Cur) {
+// 			auto_gain = channel_automatic_gain[channelNumber - 1];
+// 			Endpoint_ClearSetupReceived();
+// 			Endpoint_Write_Control_Stream(&auto_gain, sizeof(auto_gain));
+// 			Endpoint_ClearSetupOUT();
+// 			return;
+// 		}
+// 	}
+// 	else {
+// 		if (bRequest == AUDIO_REQ_SET_Cur) {
+// 			/* A request for the current setting of a particular channel's input gain. */
+// 			Endpoint_ClearSetupReceived();
+// 			Endpoint_Read_Control_Stream(&auto_gain, sizeof(auto_gain));
+// 			Endpoint_ClearSetupIN();
+// 
+// 			// cache the value
+// 			channel_automatic_gain[channelNumber - 1] = auto_gain;
+// 			return;
+// 		}
+// 	}
+// 
+// 	// FIXME send NAK?
+// 	SendNAK();
+// }
 
 
 void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
@@ -582,32 +577,31 @@ void UpdateNextChannelArray(void)
 	uint8_t i, j;
 
 	for (i = 0; i < num_audio_channels; ++i) {
-		if (channel_mute[i]) {
+/*		if (channel_mute[i]) {
 			// if channel is muted the set -1
 			next_channel[i] = -1;
 		}
 		else {
 			// Find the next unmuted channel.
 			// This loop is guaranteed to end, possibly with j equal to i,
-			// but that's fine: it means that i is the only unmuted channel.
+			// but that's fine: it means that i is the only unmuted channel.*/
 			j = (i + 1) % num_audio_channels;
-			while (channel_mute[j]) {
-				j = (j + 1) % num_audio_channels;
-			}
-			// FIXME this 0 should be the configuration number
+// 			while (channel_mute[j]) {
+// 				j = (j + 1) % num_audio_channels;
+// 			}
 			next_channel[i] = ADC_channels[active_config][j];
-		}
-	}
+// 		}
+ 	}
 }
 
 
 void ResetADC(void)
 {
 	for (uint8_t i = 0; i < num_audio_channels; ++i) {
-		if (!channel_mute[i]) {
+// 		if (!channel_mute[i]) {
 			ADC_ReadSampleAndSetNextAddr(ADC_channels[active_config][i]);
 			break;
-		}
+// 		}
 	}
 
 	/* setup the interrupt handler registers to point to their initial value */
@@ -618,8 +612,6 @@ void ResetADC(void)
 
 void ConfigureSamplingTimer(uint32_t sampling_frequency)
 {
-// 	ShowVal((uint16_t)(sampling_frequency & 0xFFFF));
-	
 	unsigned char ucSREG;
 	
 	// disable interrupts to prevent race conditions with 16bit registers
@@ -663,10 +655,10 @@ uint8_t Volumes_Init(void)
 			ret_val = 0;
 		}
 		channel_volume[i] = ConvertByteToVolume(buf);
-		channel_mute[i] = (buf == 0);
+// 		channel_mute[i] = (buf == 0);
 
 		// initialise auto gain to false
-		channel_automatic_gain[i] = 0;
+// 		channel_automatic_gain[i] = 0;
 	}
 
 	return ret_val;

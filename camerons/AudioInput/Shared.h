@@ -12,7 +12,7 @@
 #define __SHARED_H__
 
 /** 6 configurations */
-#define NUM_CONFIGURATIONS 6
+#define NUM_ALTERNATE_SETTINGS 6
 
 /** the default sampling frequency for all the microphones
  * FIXME add preprocessor check to ensure frequency will work */
