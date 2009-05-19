@@ -79,12 +79,14 @@
 #define	addr_lsb	r26
 #define	addr_msb	r27
 #define usb_general_interrupt_count r4
+#define num_audio_channels r5
 #else
 #include <stdint.h>
 volatile register uint8_t write_lsb asm("r2");
 volatile register uint8_t write_msb asm("r3");
 /* global register so I can have assembly interrupt handler */
 volatile register uint8_t usb_general_interrupt_count asm("r4");
+volatile register uint8_t num_audio_channels asm("r5");
 #endif /* __ASSEMBLER__ */
 
 

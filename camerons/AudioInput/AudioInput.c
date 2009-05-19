@@ -73,7 +73,6 @@ HANDLES_EVENT(USB_UnhandledControlPacket);
 // (makes it faster to reference them)
 // FIXME these should be updated when configuration changes
 uint8_t active_config;
-uint8_t	num_audio_channels;
 /** Array for storing cache calculations about what is the next channel
  * to sample for each unmuted channel. Muted channels have -1. */
 uint8_t next_channel[MAX_AUDIO_CHANNELS];

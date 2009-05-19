@@ -26,52 +26,34 @@ TIMER1_COMPA_vect:
 		in		temp_reg,			_SFR_IO_ADDR(SREG)
 		push	temp_reg
 		push	usb_ep_save
-		push	isr_iter
-		push	num_chans
-		push	next_chan
-		push	read_lsb
-		push	read_msb
-		push	addr_lsb
-		push	addr_msb
-
-		/* save current usb endpoint (anded with mask to guarantee safe) */
-		lds		usb_ep_save,			UENUM
-		andi	usb_ep_save,			ENDPOINT_EPNUM_MASK
-
-		/* select the audio stream endpoint */
-		ldi		temp_reg,				AUDIO_STREAM_EPNUM
-		sts		UENUM,					temp_reg
-
-		/** if audio stream can't be written to, then skip
-		 * (this will cause samples to be lost, but there's not much we can do) */
-		lds		temp_reg,				UEINTX
-		sbrs	temp_reg,				RWAL
-		rjmp	tidy_up_and_exit
-
+		
 		/* enable nSS (chip select) DD_SS(0) pin on PORTB */
 		cbi		_SFR_IO_ADDR(PORTB),	DD_SS
 		/* write the MSB to the SPI data register (SPDR) */
 		sts		SPDR,					write_msb
 		/* we now have 16 cycles to wait */
-				 
-		/* load number of channels in this configuration from C variable num_audio_channels (4 cycles) */
-		ldi		addr_lsb,				lo8(num_audio_channels)
-		ldi		addr_msb,				hi8(num_audio_channels)
-		ld		num_chans,				addr_pair
-				
-		/* wait for the ADC (12 cycles) */
- 		nop
- 		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
+		
+		push	isr_iter
+		push	next_chan
+		push	read_lsb
+		push	read_msb
+		push	addr_lsb
+		push	addr_msb
+			
+		; save current usb endpoint (2 cycles)
+		lds		usb_ep_save,			UENUM
+
+		; select the audio stream endpoint (3 cycles)
+		ldi		temp_reg,				AUDIO_STREAM_EPNUM
+		sts		UENUM,					temp_reg
+
+		; if audio stream can't be written to, then skip (5 cycles with or without jmp)
+		; (this will cause samples to be lost, but there's not much we can do)
+		lds		temp_reg,				UEINTX
+		sbrs	temp_reg,				RWAL
+		rjmp	early_exit_cant_write
+
+		; no need to wait for ADC
 
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
@@ -91,7 +73,7 @@ TIMER1_COMPA_vect:
 		ldi		isr_iter,				1
 		/* jump to end if there's only one channel
 		 * (2 cycles if we're not branching, 3 otherwise) */
-		cp		isr_iter,				num_chans
+		cp		isr_iter,				num_audio_channels
 		breq	loop_end
 
 		/** get next channel to read after this one (excluding muted)
@@ -173,7 +155,7 @@ adcloop:
 		inc		isr_iter
 		/* jump to end if there's no more channels
 		 * (2 cycles if we're not branching, 3 otherwise) */
-		cp		isr_iter,				num_chans
+		cp		isr_iter,				num_audio_channels
 		breq	loop_end
 
 		/** get next channel to read after this one (excluding muted)
@@ -271,7 +253,6 @@ tidy_up_and_exit:
 		pop		read_msb
 		pop		read_lsb
 		pop		next_chan
-		pop		num_chans
 		pop		isr_iter
 		pop		usb_ep_save
 		pop		temp_reg
@@ -283,3 +264,9 @@ tidy_up_and_exit:
 
 		/* return from interrupt handler */
 		reti
+
+early_exit_cant_write:
+		; abort ADC read/write (disable nSS (chip select) DD_SS(0) pin on PORTB)
+		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
+		; jump to regular exit
+		rjmp	tidy_up_and_exit
