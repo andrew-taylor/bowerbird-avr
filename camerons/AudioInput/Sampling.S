@@ -18,16 +18,15 @@ USB_GEN_vect:
 
 .global	TIMER1_COMPA_vect
 TIMER1_COMPA_vect:
+		sbi		_SFR_IO_ADDR(PORTC),	0
+
 		/* push our working registers onto the stack */
-		push	__zero_reg__
-		push	__tmp_reg__
+		push	temp_reg
 		/* save status register */
-		in		__tmp_reg__,			_SFR_IO_ADDR(SREG)
-		push	__tmp_reg__
-		clr		__zero_reg__
+		in		temp_reg,			_SFR_IO_ADDR(SREG)
+		push	temp_reg
 		push	usb_ep_save
 		push	isr_iter
-		push	temp_reg
 		push	num_chans
 		push	next_chan
 		push	read_lsb
@@ -273,14 +272,14 @@ tidy_up_and_exit:
 		pop		read_lsb
 		pop		next_chan
 		pop		num_chans
-		pop		temp_reg
 		pop		isr_iter
 		pop		usb_ep_save
-		pop		__tmp_reg__
+		pop		temp_reg
 		/* restore status register */
-		out		_SFR_IO_ADDR(SREG),		__tmp_reg__
-		pop		__tmp_reg__
-		pop		__zero_reg__
+		out		_SFR_IO_ADDR(SREG),		temp_reg
+		pop		temp_reg
+
+		cbi		_SFR_IO_ADDR(PORTC),	0
 
 		/* return from interrupt handler */
 		reti
