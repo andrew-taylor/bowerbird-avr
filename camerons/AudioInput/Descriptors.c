@@ -168,12 +168,12 @@ upwards-compatible it seems to me.
  * are routed to each USB channel for each configuration. The number
  * of USB channels in each configuration must match the configurations
  * below */
-uint8_t num_channels[NUM_ALTERNATE_SETTINGS] = { 1, 2, 2, 4, 4, 8 };
+uint8_t num_channels[NUM_ALTERNATE_SETTINGS] = { 1, 2, /*2, 4,*/ 4, 8 };
 uint8_t ADC_channels[NUM_ALTERNATE_SETTINGS][MAX_AUDIO_CHANNELS] = {
 		{ 0, 0, 0, 0, 0, 0, 0, 0 },
-		{ 0, 1, 0, 0, 0, 0, 0, 0 },
+// 		{ 0, 1, 0, 0, 0, 0, 0, 0 },
 		{ 0, 2, 0, 0, 0, 0, 0, 0 },
-		{ 0, 1, 2, 3, 0, 0, 0, 0 },
+// 		{ 0, 1, 2, 3, 0, 0, 0, 0 },
 		{ 0, 2, 4, 6, 0, 0, 0, 0 },
 		{ 0, 1, 2, 3, 4, 5, 6, 7 }
 };
@@ -289,10 +289,10 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM =
 	/* alternates with actual audio on them. */
 	AUDIO_STREAMING_INTERFACE(1, 1),
 	AUDIO_STREAMING_INTERFACE(2, 2),
-	AUDIO_STREAMING_INTERFACE(3, 2),
-	AUDIO_STREAMING_INTERFACE(4, 4),
-	AUDIO_STREAMING_INTERFACE(5, 4),
-	AUDIO_STREAMING_INTERFACE(6, 8)
+// 	AUDIO_STREAMING_INTERFACE(3, 2),
+	AUDIO_STREAMING_INTERFACE(3, 4),
+// 	AUDIO_STREAMING_INTERFACE(5, 4),
+	AUDIO_STREAMING_INTERFACE(4, 8)
 };
 
 
