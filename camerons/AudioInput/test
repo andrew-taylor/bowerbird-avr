@@ -3,8 +3,9 @@
 TEST_MODE="play"
 FILE="test.wav"
 FORMAT="S16_LE"
-CHANNELS=`amixer -c 1 | grep 'Capture channels'|tr '-' '\n'|wc -l`
-DEFAULT_ARGS="-v -Dplughw:1,0 $FILE -f $FORMAT -c $CHANNELS"
+#CHANNELS=`amixer -c 1 | grep 'Capture channels'|tr '-' '\n'|wc -l`
+RECORDING_ARGS="-v -Dplughw:1,0 $FILE"
+COMMON_ARGS="-f S16_LE"
 
 while [ "$1" ]
 do
@@ -22,21 +23,22 @@ do
 		PLAY_ALL=1
 		shift
 	else
-		break
+		COMMON_ARGS+=" $1"
+		shift
 	fi
 done
 
 if [ "$TEST_MODE" != "view" ]
 then
 	# split recording into individual files
-	DEFAULT_ARGS+=" -I"
+	RECORDING_ARGS+=" -I"
 fi
 
 rm -f $FILE*
 
 TEMPFILE=`tempfile`
 
-ARECORD_CMD="arecord $DEFAULT_ARGS $@"
+ARECORD_CMD="arecord $RECORDING_ARGS $COMMON_ARGS"
 echo $ARECORD_CMD
 if ($ARECORD_CMD > $TEMPFILE 2>&1)
 then
@@ -47,13 +49,9 @@ then
 	else
 		if [ "$PLAY_ALL" ]
 		then
-			for i in `seq 0 $(($CHANNELS-1))`
-			do
-				echo Channel $i
-				aplay -f $FORMAT $@ $FILE.$i
-			done
+			aplay -f $FORMAT $COMMON_ARGS $FILE.*
 		else
-			aplay -f $FORMAT $@ $FILE.0
+			aplay -f $FORMAT $COMMON_ARGS $FILE.0
 		fi
 	fi
 else
