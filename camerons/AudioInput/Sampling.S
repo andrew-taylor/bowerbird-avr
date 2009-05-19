@@ -18,23 +18,22 @@ USB_GEN_vect:
 
 .global	TIMER1_COMPA_vect
 TIMER1_COMPA_vect:
-		sbi		_SFR_IO_ADDR(PORTC),	0
+;		sbi		_SFR_IO_ADDR(PORTC),	0
 
 		/* push our working registers onto the stack */
 		push	temp_reg
 		/* save status register */
 		in		temp_reg,			_SFR_IO_ADDR(SREG)
 		push	temp_reg
-		push	usb_ep_save
 		
 		/* enable nSS (chip select) DD_SS(0) pin on PORTB */
 		cbi		_SFR_IO_ADDR(PORTB),	DD_SS
-		/* write the MSB to the SPI data register (SPDR) */
+/* write the MSB to the SPI data register (SPDR) */
 		sts		SPDR,					write_msb
 		/* we now have 16 cycles to wait */
 		
+		push	usb_ep_save
 		push	isr_iter
-		push	next_chan
 		push	read_lsb
 		push	read_msb
 		push	addr_lsb
@@ -53,14 +52,15 @@ TIMER1_COMPA_vect:
 		sbrs	temp_reg,				RWAL
 		rjmp	early_exit_cant_write
 
-		; no need to wait for ADC
+		/* wait for the ADC */
+		/* (not required at present because we have 16 cycles of instructions) */
 
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
 		/* save MSB of return value (from SPDR) */
 		lds		read_msb,				SPDR
 	
-		/* write the LSB to the SPI data register (SPDR) */
+/* write the LSB to the SPI data register (SPDR) */
 		sts		SPDR,					write_lsb
 		/* we now have 16 cycles to wait */
 
@@ -76,32 +76,30 @@ TIMER1_COMPA_vect:
 		cp		isr_iter,				num_audio_channels
 		breq	loop_end
 
-		/** get next channel to read after this one (excluding muted)
-		 * if channel is muted then send zeroes */
-		/* load address of element from next_channel array (4 cycles) */
-		mov		addr_lsb,				isr_iter
-		clr		addr_msb
-		subi	addr_lsb,				lo8(-(next_channel))
-		sbci	addr_msb,				hi8(-(next_channel))
-		/* read next channel value from memory address (-1 == mute) (2 cycles) */
-		ld		temp_reg,				addr_pair
+		; get next channel to read after this one
+		; load address of element from next_channel array (4 cycles) */		
+		ldi		addr_lsb,				lo8(next_channel)
+		ldi		addr_msb,				hi8(next_channel)
+		adiw	addr_lsb,				1
+		; read next channel value from memory address (NOTE - post-incremented) (2 cycles)
+		ld		temp_reg,				addr_pair+
 		/* set up MSB of word to send to ADC (5 cycles) */
 		andi	temp_reg,				ADC_ADDR_MASK
 		lsl		temp_reg
 		lsl		temp_reg
 		ori		temp_reg,				ADC_CR_MSB
 		mov		write_msb,				temp_reg
-
+		
 		/* wait for the ADC */
 		/* (not required at present because we have 16 cycles of instructions) */
+
+		/* disable nSS (chip select) DD_SS(0) pin on PORTB (2 cycles) */
+		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
 		/* save LSB of return value (from SPDR) */
 		lds		read_lsb,				SPDR
-		
-		/* disable nSS (chip select) DD_SS(0) pin on PORTB */
-		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 
 /** at the beginning of each of these loops write_msb/lsb are setup with the
  * word to send to the ADC, and read_msb/lsb contain the previous word read back
@@ -131,10 +129,10 @@ adcloop:
 		nop
 		nop
 		nop
-		nop
-		nop
-		nop
-		nop
+		;nop
+		;nop
+		;nop
+		;nop
 		
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
@@ -158,21 +156,22 @@ adcloop:
 		cp		isr_iter,				num_audio_channels
 		breq	loop_end
 
-		/** get next channel to read after this one (excluding muted)
-		 * if channel is muted then send zeroes */
-		/* load address of element from next_channel array (4 cycles) */
-		mov		addr_lsb,				isr_iter
-		clr		addr_msb
-		subi	addr_lsb,				lo8(-(next_channel))
-		sbci	addr_msb,				hi8(-(next_channel))
-		/* read next channel value from memory address (-1 == mute) (2 cycles) */
-		ld		temp_reg,				addr_pair
+		; get next channel to read after this one
+		; read next channel value from memory address (NOTE - post-incremented) (2 cycles)
+		ld		temp_reg,				addr_pair+
 		/* set up MSB of word to send to ADC (5 cycles) */
 		andi	temp_reg,				ADC_ADDR_MASK
 		lsl		temp_reg
 		lsl		temp_reg
 		ori		temp_reg,				ADC_CR_MSB
 		mov		write_msb,				temp_reg
+
+		; wait for the ADC (we want the chip de-select to be the last instruction in the loop)
+		;nop
+		;nop
+		
+		; disable nSS (chip select) DD_SS(0) pin on PORTB (2 cycles)
+		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 
 		/* wait for the ADC */
 		/* (not required at present because we have 16 cycles of instructions) */
@@ -182,9 +181,6 @@ adcloop:
 		/* save MSB of return value (from SPDR) */
 		lds		read_lsb,				SPDR
 		
-		/* disable nSS (chip select) DD_SS(0) pin on PORTB */
-		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
-
 		/* loop to top (we break out of the loop elsewhere) */
 		rjmp	adcloop
 
@@ -206,18 +202,15 @@ loop_end:
 		ori		temp_reg,				ADC_CR_MSB
 		mov		write_msb,				temp_reg
 
-		/* process last data collected */
-		/* wait the remaining cycle */
-		nop
+		/* disable nSS (chip select) DD_SS(0) pin on PORTB */
+		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 	
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
 		/* save MSB of return value (from SPDR) */
 		lds		read_lsb,				SPDR
 		
-		/* disable nSS (chip select) DD_SS(0) pin on PORTB */
-		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
-		
+		/* process last data collected */
 		/* rearrange the ADC response to USB audio format (left shift the word 4x, padding with 0s)
 		/* shift 4x to the left, with overflow going into MSB */
 		swap	read_lsb
@@ -252,7 +245,6 @@ tidy_up_and_exit:
 		pop		addr_lsb
 		pop		read_msb
 		pop		read_lsb
-		pop		next_chan
 		pop		isr_iter
 		pop		usb_ep_save
 		pop		temp_reg
@@ -260,7 +252,7 @@ tidy_up_and_exit:
 		out		_SFR_IO_ADDR(SREG),		temp_reg
 		pop		temp_reg
 
-		cbi		_SFR_IO_ADDR(PORTC),	0
+;		cbi		_SFR_IO_ADDR(PORTC),	0
 
 		/* return from interrupt handler */
 		reti
