@@ -18,6 +18,11 @@ do
 		TEST_MODE="$2"
 		shift
 		shift
+	elif [ "$1" == "-c" ]
+	then
+		RECORDING_ARGS+=" $1 $2"
+		shift
+		shift
 	elif [ "$1" == "-a" ]
 	then
 		PLAY_ALL=1
@@ -49,10 +54,12 @@ then
 	else
 		if [ "$PLAY_ALL" ]
 		then
-			aplay -f $FORMAT $COMMON_ARGS $FILE.*
+			APLAY_CMD="aplay $COMMON_ARGS $FILE.*"
 		else
-			aplay -f $FORMAT $COMMON_ARGS $FILE.0
+			APLAY_CMD="aplay $COMMON_ARGS $FILE.0"
 		fi
+		echo $APLAY_CMD
+		$APLAY_CMD
 	fi
 else
 	echo "Capture Failed:"
