@@ -17,7 +17,7 @@
 /** the default sampling frequency for all the microphones
  * FIXME add preprocessor check to ensure frequency will work */
 #define LOWEST_AUDIO_SAMPLE_FREQUENCY		4000
-#define HIGHEST_AUDIO_SAMPLE_FREQUENCY		120000
+#define HIGHEST_AUDIO_SAMPLE_FREQUENCY		180000
 #define DEFAULT_AUDIO_SAMPLE_FREQUENCY      8000
 
 /** maximum number of audio streams (this is hardware-limited) */
@@ -30,25 +30,11 @@
 /** duplicated from MyUSB/Drivers/USB/LowLevel/Endpoint.h because
  * I need it in the assembly code and that file has C function declarations */
 #include <MyUSB/Drivers/USB/LowLevel/USBMode.h>
-#if defined(USB_FULL_CONTROLLER) || defined(USB_MODIFIED_FULL_CONTROLLER)
-/** Total number of endpoints (including the default control endpoint at
- * address 0) which may be used in the device. Different USB AVR models support
- * different amounts of endpoints, this value reflects the maximum number of
- * endpoints for the currently selected AVR model. */
-#define ENDPOINT_MAX_ENDPOINTS                  7
-/** Size in bytes of the largest endpoint bank size possible in the device. Not
- * all banks on each AVR model supports the largest bank size possible on the
- * device; different endpoint numbers support different maximum bank sizes.
- * This value reflects the largest possible bank of any endpoint on the
- * currently selected USB AVR model. */
-#define ENDPOINT_MAX_SIZE                       256
-#else
-#define ENDPOINT_MAX_ENDPOINTS                  5
-#define ENDPOINT_MAX_SIZE                       64
-#endif
+#define ENDPOINT_MAX_ENDPOINTS		7
+#define ENDPOINT_MAX_SIZE			256
 
-#define AUDIO_STREAM_EPNUM          1
-#define AUDIO_STREAM_EPSIZE         ENDPOINT_MAX_SIZE
+#define AUDIO_STREAM_EPNUM			1
+#define AUDIO_STREAM_EPSIZE			ENDPOINT_MAX_SIZE
 #define ENDPOINT_EPNUM_MASK			0b111
 
 

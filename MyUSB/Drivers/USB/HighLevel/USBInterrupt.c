@@ -66,22 +66,22 @@ void USB_INT_ClearAllInterrupts(void)
 	#endif
 }
 
-// ISR(USB_GEN_vect)
-// {
+ISR(USB_GEN_vect)
+{
 // 	usb_general_interrupt_count++;
 // }
-
-bool USB_General_Interrupt_Requires_Processing(void)
-{
-	return (usb_general_interrupt_count > 0);
-}
-
-void USB_Handle_General_Interrupt(void)
-{
-	if (--usb_general_interrupt_count < 0) {
-		// make sure we're not running this too often
-		return;
-	}
+// 
+// bool USB_General_Interrupt_Requires_Processing(void)
+// {
+// 	return (usb_general_interrupt_count > 0);
+// }
+// 
+// void USB_Handle_General_Interrupt(void)
+// {
+// 	if (--usb_general_interrupt_count < 0) {
+// 		// make sure we're not running this too often
+// 		return;
+// 	}
 
 	#if defined(USB_CAN_BE_DEVICE)
 	#if defined(USB_FULL_CONTROLLER) || defined(USB_MODIFIED_FULL_CONTROLLER)

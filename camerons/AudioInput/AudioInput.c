@@ -78,13 +78,8 @@ uint8_t active_config;
 uint8_t next_channel[MAX_AUDIO_CHANNELS];
 // sampling frequency for all channels
 uint32_t audio_sampling_frequency;
-// bool array of whether channels are muted
-// FIXME remove this and use the information in next_channel
-// uint8_t channel_mute[MAX_AUDIO_CHANNELS];
 // channel gains in db
 int16_t channel_volume[MAX_AUDIO_CHANNELS];
-// bool array of whether channels are set to have automatic gain (not currently used)
-// uint8_t channel_automatic_gain[MAX_AUDIO_CHANNELS];
 
 
 // forward declarations
@@ -141,14 +136,14 @@ void main(void)
 	// run the background USB interfacing task (audio sampling is done by interrupt)
 	while (1) {
 		// disable interrupts to prevent race conditions with interrupt handler
-		uint8_t SREG_save = SREG;
-		cli();
-		// check if USB General interrupts require processing
-		if (USB_General_Interrupt_Requires_Processing()) {
-			USB_Handle_General_Interrupt();
-		}
-		// restore interrupts
-		SREG = SREG_save;
+// 		uint8_t SREG_save = SREG;
+// 		cli();
+// 		// check if USB General interrupts require processing
+// 		if (USB_General_Interrupt_Requires_Processing()) {
+// 			USB_Handle_General_Interrupt();
+// 		}
+// 		// restore interrupts
+// 		SREG = SREG_save;
 
 		// handle any control packets received
 		if (USB_IsConnected) {
@@ -228,15 +223,9 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 				channelNumber   = wValue & 0xFF;
 				
 				switch (controlSelector) {
-/*					case FEATURE_MUTE:
-						ProcessMuteRequest(bRequest, bmRequestType, channelNumber);
-						break;*/
 					case FEATURE_VOLUME:
 						ProcessVolumeRequest(bRequest, bmRequestType, channelNumber);
 						break;
-/*					case FEATURE_AUTOMATIC_GAIN:
-						ProcessAutomaticGainRequest(bRequest, bmRequestType, channelNumber);
-						break;*/
 					default:
 						SendNAK();
 						return;
@@ -354,93 +343,6 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 }
 
 
-// void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType,
-// 		uint8_t channelNumber)
-// {
-// 	uint8_t muted;
-// 	
-// 	// FIXME no master control.
-// 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-// 	if (channelNumber == 0 || channelNumber > num_audio_channels) {
-// 		SendNAK();
-// 		return;
-// 	}
-// 
-// 	// find out if its a "get" or a "set" request
-// 	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
-// 		if (bRequest == AUDIO_REQ_GET_Cur) {
-// 			muted = channel_mute[channelNumber - 1];
-// 			Endpoint_ClearSetupReceived();
-// 			Endpoint_Write_Control_Stream(&muted, sizeof(muted));
-// 			Endpoint_ClearSetupOUT();
-// 			return;
-// 		}
-// 	}
-// 	else {
-// 		if (bRequest == AUDIO_REQ_SET_Cur) {
-// 			// A request for the current setting of a particular channel's input gain.
-// 			Endpoint_ClearSetupReceived();
-// 			Endpoint_Read_Control_Stream(&muted, sizeof(muted));
-// 			Endpoint_ClearSetupIN();
-// 
-// 			// cache the value
-// 			channel_mute[channelNumber - 1] = muted;
-// 			
-// 			// update the next channel array for the interrupt handler
-// 			UpdateNextChannelArray();
-// 
-// 			// reset the ADC's next read just in case it changed due to this (un)muting
-// 			ResetADC();
-// 	
-// 			return;
-// 		}
-// 	}
-// 
-// 	// FIXME send NAK?
-// 	SendNAK();
-// }
-
-
-// void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType,
-// 		uint8_t channelNumber)
-// {
-// 	uint8_t auto_gain;
-// 	
-// 	// FIXME no master control.
-// 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-// 	if (channelNumber == 0 || channelNumber > num_audio_channels) {
-// 		SendNAK();
-// 		return;
-// 	}
-// 
-// 	// find out if its a "get" or a "set" request
-// 	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
-// 		if (bRequest == AUDIO_REQ_GET_Cur) {
-// 			auto_gain = channel_automatic_gain[channelNumber - 1];
-// 			Endpoint_ClearSetupReceived();
-// 			Endpoint_Write_Control_Stream(&auto_gain, sizeof(auto_gain));
-// 			Endpoint_ClearSetupOUT();
-// 			return;
-// 		}
-// 	}
-// 	else {
-// 		if (bRequest == AUDIO_REQ_SET_Cur) {
-// 			/* A request for the current setting of a particular channel's input gain. */
-// 			Endpoint_ClearSetupReceived();
-// 			Endpoint_Read_Control_Stream(&auto_gain, sizeof(auto_gain));
-// 			Endpoint_ClearSetupIN();
-// 
-// 			// cache the value
-// 			channel_automatic_gain[channelNumber - 1] = auto_gain;
-// 			return;
-// 		}
-// 	}
-// 
-// 	// FIXME send NAK?
-// 	SendNAK();
-// }
-
-
 void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 {
 	uint8_t freq_byte[3];
@@ -508,64 +410,6 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 }
 
 
-/* **************************************** */
-
-/* SPI/ADC interrupt handler. We get woken up by the timer interrupt,
- * and try to shovel the samples from the ADC-via-SPI into the USB
- * endpoint buffer as quickly as possible.
- *
- * FIXME: eventually assume the ADC has already been told what's going
- * on and we're in sync with it. (i.e. stream the values out using the
- * ADC sequencer).
- *
- * FIXME: invariants: assume the ADC is setup to output channel 0 on
- * entry to the ISR. I don't think we need to use the sequencer if we
- * maintain this.
- *
- * Also assume there is enough room for a complete audio frame in the
- * endpoint buffer. This ensures we sample deterministically up to the
- * clock accuracy.
- *
- * Glitches: see audio formats doc, sec 2.2.1, p8, 2.2.4, p9.
- */
-// ISR(TIMER1_COMPA_vect, ISR_BLOCK)
-// {
-// 	/* Save the current endpoint, restore it on exit. */
-// 	uint8_t PrevEndpoint = Endpoint_GetCurrentEndpoint();
-// 
-// 	/* Select the audio stream endpoint */
-// 	Endpoint_SelectEndpoint(AUDIO_STREAM_EPNUM);
-// 
-// 	/* Check if the current endpoint can be read from (contains a packet) */
-// 	if (Endpoint_ReadWriteAllowed()) {
-// 		int i = 0;
-// 		do {
-// 			i++;
-// 			if (i == num_audio_channels)
-// 				i = 0;
-// 			if (channel_mute[i]) {
-// 				// send zero length packet (PrevEndpoint is not used)
-// // 				Endpoint_Write_Control_Stream(&PrevEndpoint, 0);
-// 				Endpoint_Write_Word(0);
-// 			}
-// 			else {
-// 				// USB Spec, "Frmts20 final.pdf" p16: left-justify the data.
-// 				// i.e. for 12 significant bits, shift right 4, have four 0 LSBs.
-// 				// Note we have to get the sign bit right.
-// 				Endpoint_Write_Word(ADC_ReadSampleAndSetNextAddr(i));
-// 			}
-// 		} while (i != 0);
-// 
-// 		if (Endpoint_BytesInEndpoint() > AUDIO_STREAM_FULL_THRESHOLD) {
-// 			/* Send the full packet to the host */
-// 			Endpoint_ClearCurrentBank();
-// 		}
-// 	}
-// 
-// 	Endpoint_SelectEndpoint(PrevEndpoint);
-// }
-
-
 /** Update next_channel array for the interrupt handler.
  * This involves marking muted channels with -1, and the rest
  * with the next enabled channel to sample. */
@@ -574,32 +418,15 @@ void UpdateNextChannelArray(void)
 	uint8_t i, j;
 
 	for (i = 0; i < num_audio_channels; ++i) {
-/*		if (channel_mute[i]) {
-			// if channel is muted the set -1
-			next_channel[i] = -1;
-		}
-		else {
-			// Find the next unmuted channel.
-			// This loop is guaranteed to end, possibly with j equal to i,
-			// but that's fine: it means that i is the only unmuted channel.*/
-			j = (i + 1) % num_audio_channels;
-// 			while (channel_mute[j]) {
-// 				j = (j + 1) % num_audio_channels;
-// 			}
-			next_channel[i] = ADC_channels[active_config][j];
-// 		}
+		j = (i + 1) % num_audio_channels;
+		next_channel[i] = ADC_channels[active_config][j];
  	}
 }
 
 
 void ResetADC(void)
 {
-	for (uint8_t i = 0; i < num_audio_channels; ++i) {
-// 		if (!channel_mute[i]) {
-			ADC_ReadSampleAndSetNextAddr(ADC_channels[active_config][i]);
-			break;
-// 		}
-	}
+	ADC_ReadSampleAndSetNextAddr(ADC_channels[active_config][0]);
 
 	/* setup the interrupt handler registers to point to their initial value */
 	write_lsb = ADC_CR_LSB;
@@ -652,10 +479,6 @@ uint8_t Volumes_Init(void)
 			ret_val = 0;
 		}
 		channel_volume[i] = ConvertByteToVolume(buf);
-// 		channel_mute[i] = (buf == 0);
-
-		// initialise auto gain to false
-// 		channel_automatic_gain[i] = 0;
 	}
 
 	return ret_val;
