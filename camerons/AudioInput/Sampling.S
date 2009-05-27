@@ -124,10 +124,10 @@ adcloop:
 		/* send previous data to usb (8bit FIFO, so just write twice) (4 cycles) */
 		sts		UEDATX,					read_lsb
 		sts		UEDATX,					read_msb
+		inc		bytes_in_usb_buffer
+		inc		bytes_in_usb_buffer
 
 		/* Wait for the ADC */
-		nop
-		nop
 		nop
 		;nop
 		;nop
@@ -215,6 +215,7 @@ loop_end:
 		brne	normal_sample
 		; for mono sampling, just use the bottom 8 bits
 		sts		UEDATX,					read_lsb
+		inc		bytes_in_usb_buffer
 		rjmp	send_buffer_to_host
 		
 normal_sample:
@@ -230,19 +231,20 @@ normal_sample:
 		/* send data to usb (8bit FIFO, so just write twice) */
 		sts		UEDATX,					read_lsb
 		sts		UEDATX,					read_msb
+		inc		bytes_in_usb_buffer
+		inc		bytes_in_usb_buffer
 		
 send_buffer_to_host:
 		/* if buffer is just about full, then send it to the host */
-		lds		addr_lsb,				UEBCLX
-		lds		addr_msb,				UEBCHX
-		cpi		addr_lsb,				AUDIO_STREAM_FULL_THRESHOLD
-		cpc		addr_msb,				__zero_reg__
+		mov		temp_reg,				bytes_in_usb_buffer
+		cpi		temp_reg,				AUDIO_STREAM_FULL_THRESHOLD
 		brlo	tidy_up_and_exit
 		
 		/* send to host (clear FIFOCON bit in UEINTX) */
 		lds		temp_reg,				UEINTX
 		cbr		temp_reg,				FIFOCON_MASK
 		sts		UEINTX,					temp_reg
+		clr		bytes_in_usb_buffer
 
 tidy_up_and_exit:
 		/* restore previous endpoint */
