@@ -67,11 +67,6 @@ TIMER1_COMPA_vect:
 		sts		SPDR,					write_lsb
 		/* we now have 16 cycles to wait */
 
-		/* rearrange the ADC response to USB audio format (left shift the word 4x, padding with 0s)
-		/* shift msb 4x to the left, discarding overflow (faster to swap & mask) (2 cycles) */
-		swap	read_msb
-		andi	read_msb,				0xF0
-
 		; save register value (1 cycle per push)
 		push	read_lsb
 		push	isr_iter
@@ -119,6 +114,11 @@ adcloop:
 		sts		SPDR,					write_msb
 		/* we now have 16 cycles to wait */
 
+		/* rearrange the ADC response to USB audio format (left shift the word 4x, padding with 0s)
+		/* shift msb 4x to the left, discarding overflow (faster to swap & mask) (2 cycles) */
+		swap	read_msb
+		andi	read_msb,				0xF0
+
 		/* rearrange the previous ADC response to USB audio format
 		 * (flushed left, padding with 0s)
 		 * shift 4x to the left, with overflow going into MSB (5 cycles) */
@@ -139,8 +139,6 @@ adcloop:
 		nop
 		;nop
 		;nop
-		;nop
-		;nop
 		
 ; ADC big byte ready to be read
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
@@ -152,11 +150,6 @@ adcloop:
 		/* write the LSB to the SPI data register (SPDR) */
 		sts		SPDR,					write_lsb
 		/* we now have 16 cycles to wait */
-
-		/* rearrange the ADC response to USB audio format (left shift the word 4x, padding with 0s)
-		/* shift msb 4x to the left, discarding overflow (faster to swap & mask) (2 cycles) */
-		swap	read_msb
-		andi	read_msb,				0xF0
 
 		/* increment loop counter (1 cycle) */
 		inc		isr_iter
@@ -176,6 +169,8 @@ adcloop:
 		mov		write_msb,				temp_reg
 
 		; wait for the ADC (we want the chip de-select to be the last instruction in the loop)
+		nop
+		nop
 		;nop
 		;nop
 		
@@ -192,9 +187,14 @@ adcloop:
 		rjmp	adcloop
 
 /* We arrive here with the msb read/write of the last sample already done,
- * but the lsb read/write is only 6 cycles in. We still need to read the lsb,
+ * but the lsb read/write is only 4 cycles in. We still need to read the lsb,
  * and prepare and send this final sample */
 loop_end:
+		/* rearrange the ADC response to USB audio format (left shift the word 4x, padding with 0s)
+		/* shift msb 4x to the left, discarding overflow (faster to swap & mask) (2 cycles) */
+		swap	read_msb
+		andi	read_msb,				0xF0
+
 		/* setup next first read */
 		/** get first channel to read */
 		/* load address of element from next_channel array (2 cycles)*/
