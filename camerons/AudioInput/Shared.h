@@ -17,7 +17,7 @@
 /** the default sampling frequency for all the microphones
  * FIXME add preprocessor check to ensure frequency will work */
 #define LOWEST_AUDIO_SAMPLE_FREQUENCY		4000
-#define HIGHEST_AUDIO_SAMPLE_FREQUENCY		180000
+#define HIGHEST_AUDIO_SAMPLE_FREQUENCY		256000
 #define DEFAULT_AUDIO_SAMPLE_FREQUENCY      8000
 
 /** maximum number of audio streams (this is hardware-limited) */

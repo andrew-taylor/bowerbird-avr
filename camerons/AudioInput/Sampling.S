@@ -48,12 +48,13 @@ TIMER1_COMPA_vect:
 		sbrs	temp_reg,				RWAL
 		rjmp	early_exit_cant_write
 
-		nop
-		nop
-		nop
-		nop
-		nop
+		; jump to optimised code if there's only one channel (5 cycles if jumping to mono, else 4)
+		mov		temp_reg,				num_audio_channels
+		cpi		temp_reg,				1
+		brne	non_mono_sample
+		rjmp	mono_sample
 
+non_mono_sample:
 		; save register value (1 cycle per push)
 		push	read_msb
 
@@ -281,4 +282,60 @@ early_exit_cant_write:
 		; abort ADC read/write (disable nSS (chip select) DD_SS(0) pin on PORTB)
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 		; jump to mono exit because we never pushed the extra registers
+		rjmp	mono_tidy_up_and_exit
+
+; optimised code for fast mono sampling
+/* We arrive here with the msb read/write 16 cycles in. We still need to read the lsb,
+ * and prepare and send this final sample */
+mono_sample:
+; ADC big byte ready to be read
+		/* reading this register seems to be necessary to get the data loaded into SPDR */
+		lds		temp_reg,				SPSR
+		/* read MSB of return value (from SPDR), though we'll be discarding this */
+		lds		temp_reg,				SPDR
+	
+/* write the LSB to the SPI data register (SPDR) */
+		sts		SPDR,					write_lsb
+		/* we now have 16 cycles to wait */
+
+		/* wait for the ADC (nothing else to do here) */
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		;nop
+		;nop
+		;nop
+		;nop
+
+		/* disable nSS (chip select) DD_SS(0) pin on PORTB (2 cycles) */
+		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
+
+; ADC little byte ready to be read
+		/* reading this register seems to be necessary to get the data loaded into SPDR */
+		lds		temp_reg,				SPSR
+		/* save LSB of return value (from SPDR) */
+		lds		temp_reg,				SPDR
+		; put LSB into USB buffer
+		sts		UEDATX,					temp_reg
+		; keep track of bytes in the usb data buffer
+		inc		bytes_in_usb_buffer
+
+		/* if buffer is full (assumed to be 256), then send it to the host */
+		mov		temp_reg,				num_audio_channels
+		add		temp_reg,				bytes_in_usb_buffer
+		brcc	mono_tidy_up_and_exit
+		
+		/* send to host (clear FIFOCON bit in UEINTX) */
+		lds		temp_reg,				UEINTX
+		cbr		temp_reg,				FIFOCON_MASK
+		sts		UEINTX,					temp_reg
+
+		; go to exit
 		rjmp	mono_tidy_up_and_exit
