@@ -33,11 +33,6 @@ TIMER1_COMPA_vect:
 		/* we now have 16 cycles to wait */
 		
 		push	usb_ep_save
-		push	isr_iter
-		push	read_lsb
-		push	read_msb
-		push	addr_lsb
-		push	addr_msb
 			
 		; save current usb endpoint (2 cycles)
 		lds		usb_ep_save,			UENUM
@@ -51,6 +46,12 @@ TIMER1_COMPA_vect:
 		lds		temp_reg,				UEINTX
 		sbrs	temp_reg,				RWAL
 		rjmp	early_exit_cant_write
+
+		push	read_msb
+		push	read_lsb
+		push	isr_iter
+		push	addr_msb
+		push	addr_lsb
 
 		/* wait for the ADC */
 		/* (not required at present because we have 16 cycles of instructions) */
@@ -69,6 +70,9 @@ TIMER1_COMPA_vect:
 		swap	read_msb
 		andi	read_msb,				0xF0
 
+; 		push	read_lsb
+; 		push	isr_iter
+
 		/* initialise loop counter to 1 because we've done one already (1 cycle) */
 		ldi		isr_iter,				1
 		/* jump to end if there's only one channel
@@ -76,6 +80,9 @@ TIMER1_COMPA_vect:
 		cp		isr_iter,				num_audio_channels
 		breq	loop_end
 
+/*		push	addr_msb
+		push	addr_lsb*/
+				
 		; get next channel to read after this one
 		; load address of element from next_channel array (4 cycles) */		
 		ldi		addr_lsb,				lo8(next_channel)
@@ -89,7 +96,7 @@ TIMER1_COMPA_vect:
 		lsl		temp_reg
 		ori		temp_reg,				ADC_CR_MSB
 		mov		write_msb,				temp_reg
-		
+
 		/* wait for the ADC */
 		/* (not required at present because we have 16 cycles of instructions) */
 
@@ -247,15 +254,15 @@ send_buffer_to_host:
 		clr		bytes_in_usb_buffer
 
 tidy_up_and_exit:
+		/* restore registers */
+		pop		addr_lsb
+		pop		addr_msb
+		pop		isr_iter
+		pop		read_lsb
+		pop		read_msb
+mono_tidy_up_and_exit:
 		/* restore previous endpoint */
 		sts		UENUM,					usb_ep_save
-
-		/* restore registers */
-		pop		addr_msb
-		pop		addr_lsb
-		pop		read_msb
-		pop		read_lsb
-		pop		isr_iter
 		pop		usb_ep_save
 		pop		temp_reg
 		/* restore status register */
@@ -271,4 +278,4 @@ early_exit_cant_write:
 		; abort ADC read/write (disable nSS (chip select) DD_SS(0) pin on PORTB)
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 		; jump to regular exit
-		rjmp	tidy_up_and_exit
+		rjmp	mono_tidy_up_and_exit
