@@ -32,6 +32,7 @@ TIMER1_COMPA_vect:
 		sts		SPDR,					write_msb
 		/* we now have 16 cycles to wait */
 		
+		; save register value (1 cycle per push)
 		push	usb_ep_save
 			
 		; save current usb endpoint (2 cycles)
@@ -47,15 +48,16 @@ TIMER1_COMPA_vect:
 		sbrs	temp_reg,				RWAL
 		rjmp	early_exit_cant_write
 
+		nop
+		nop
+		nop
+		nop
+		nop
+
+		; save register value (1 cycle per push)
 		push	read_msb
-		push	read_lsb
-		push	isr_iter
-		push	addr_msb
-		push	addr_lsb
 
-		/* wait for the ADC */
-		/* (not required at present because we have 16 cycles of instructions) */
-
+; ADC big byte ready to be read
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
 		/* save MSB of return value (from SPDR) */
@@ -70,8 +72,11 @@ TIMER1_COMPA_vect:
 		swap	read_msb
 		andi	read_msb,				0xF0
 
-; 		push	read_lsb
-; 		push	isr_iter
+		; save register value (1 cycle per push)
+		push	read_lsb
+		push	isr_iter
+		push	addr_msb
+		push	addr_lsb
 
 		/* initialise loop counter to 1 because we've done one already (1 cycle) */
 		ldi		isr_iter,				1
@@ -80,9 +85,6 @@ TIMER1_COMPA_vect:
 		cp		isr_iter,				num_audio_channels
 		breq	loop_end
 
-/*		push	addr_msb
-		push	addr_lsb*/
-				
 		; get next channel to read after this one
 		; load address of element from next_channel array (4 cycles) */		
 		ldi		addr_lsb,				lo8(next_channel)
@@ -97,12 +99,10 @@ TIMER1_COMPA_vect:
 		ori		temp_reg,				ADC_CR_MSB
 		mov		write_msb,				temp_reg
 
-		/* wait for the ADC */
-		/* (not required at present because we have 16 cycles of instructions) */
-
 		/* disable nSS (chip select) DD_SS(0) pin on PORTB (2 cycles) */
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 
+; ADC little byte ready to be read (2 cycles ago)
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
 		/* save LSB of return value (from SPDR) */
@@ -131,6 +131,7 @@ adcloop:
 		/* send previous data to usb (8bit FIFO, so just write twice) (4 cycles) */
 		sts		UEDATX,					read_lsb
 		sts		UEDATX,					read_msb
+		; keep track of number of bytes in the usb data buffer (use inc because register < 16)
 		inc		bytes_in_usb_buffer
 		inc		bytes_in_usb_buffer
 
@@ -141,6 +142,7 @@ adcloop:
 		;nop
 		;nop
 		
+; ADC big byte ready to be read
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
 		/* save MSB of return value (from SPDR) */
@@ -180,9 +182,7 @@ adcloop:
 		; disable nSS (chip select) DD_SS(0) pin on PORTB (2 cycles)
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 
-		/* wait for the ADC */
-		/* (not required at present because we have 16 cycles of instructions) */
-
+; ADC little byte ready to be read
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
 		/* save MSB of return value (from SPDR) */
@@ -196,7 +196,7 @@ adcloop:
  * and prepare and send this final sample */
 loop_end:
 		/* setup next first read */
-		/** get next channel to read after this one */
+		/** get first channel to read */
 		/* load address of element from next_channel array (2 cycles)*/
 		ldi		addr_lsb,				lo8(next_channel)
 		ldi		addr_msb,				hi8(next_channel)
@@ -212,9 +212,10 @@ loop_end:
 		/* disable nSS (chip select) DD_SS(0) pin on PORTB */
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 	
+; ADC little byte ready to be read (1 cycle ago)
 		/* reading this register seems to be necessary to get the data loaded into SPDR */
 		lds		temp_reg,				SPSR
-		/* save MSB of return value (from SPDR) */
+		/* save LSB of return value (from SPDR) */
 		lds		read_lsb,				SPDR
 
 		; if this isn't mono, then jump to normal processing
@@ -238,14 +239,16 @@ normal_sample:
 		/* send data to usb (8bit FIFO, so just write twice) */
 		sts		UEDATX,					read_lsb
 		sts		UEDATX,					read_msb
+		; keep track of number of bytes in the usb data buffer (use inc because register < 16)
 		inc		bytes_in_usb_buffer
 		inc		bytes_in_usb_buffer
 		
 send_buffer_to_host:
-		/* if buffer is just about full, then send it to the host */
-		mov		temp_reg,				bytes_in_usb_buffer
-		cpi		temp_reg,				AUDIO_STREAM_FULL_THRESHOLD
-		brlo	tidy_up_and_exit
+		/* if buffer is nearly full (assumed to be 256), then send it to the host */
+		mov		temp_reg,				num_audio_channels
+		lsl		temp_reg
+		add		temp_reg,				bytes_in_usb_buffer
+		brcc	tidy_up_and_exit
 		
 		/* send to host (clear FIFOCON bit in UEINTX) */
 		lds		temp_reg,				UEINTX
@@ -277,5 +280,5 @@ mono_tidy_up_and_exit:
 early_exit_cant_write:
 		; abort ADC read/write (disable nSS (chip select) DD_SS(0) pin on PORTB)
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
-		; jump to regular exit
+		; jump to mono exit because we never pushed the extra registers
 		rjmp	mono_tidy_up_and_exit
