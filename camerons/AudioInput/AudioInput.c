@@ -246,6 +246,7 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 				if (wValue) {
 					/* Clear the audio isochronous endpoint buffer. */
 					Endpoint_ResetFIFO(AUDIO_STREAM_EPNUM);
+					bytes_in_usb_buffer = 0;
 
 					// update cached & pre-calculated values
 					active_config = wValue - 1;
@@ -283,7 +284,7 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 	
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
-	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS /*num_audio_channels*/) {
+	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS) {
 		SendNAK();
 		return;
 	}

@@ -1,10 +1,11 @@
 #!/bin/bash
 
 TEST_MODE="play"
-FILE="test.wav"
+TYPE="wav"
+FILE="test.$TYPE"
 FORMAT="S16_LE"
 #CHANNELS=`amixer -c 1 | grep 'Capture channels'|tr '-' '\n'|wc -l`
-RECORDING_ARGS="-v -Dplughw:1,0 $FILE"
+RECORDING_ARGS="-t $TYPE -v -Dplughw:1,0 $FILE"
 COMMON_ARGS="-f S16_LE"
 
 while [ "$1" ]
@@ -16,6 +17,11 @@ do
 	elif [ "$1" == "-m" ]
 	then
 		TEST_MODE="$2"
+		shift
+		shift
+	elif [ "$1" == "-d" ]
+	then
+		RECORDING_ARGS+=" $1 $2"
 		shift
 		shift
 	elif [ "$1" == "-c" ]

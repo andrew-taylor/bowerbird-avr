@@ -209,7 +209,15 @@ loop_end:
 		lds		temp_reg,				SPSR
 		/* save MSB of return value (from SPDR) */
 		lds		read_lsb,				SPDR
+
+		; if this isn't mono, then jump to normal processing
+		cpi		isr_iter,				1
+		brne	normal_sample
+		; for mono sampling, just use the bottom 8 bits
+		sts		UEDATX,					read_lsb
+		rjmp	send_buffer_to_host
 		
+normal_sample:
 		/* process last data collected */
 		/* rearrange the ADC response to USB audio format (left shift the word 4x, padding with 0s)
 		/* shift 4x to the left, with overflow going into MSB */

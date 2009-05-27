@@ -86,7 +86,8 @@ upwards-compatible it seems to me.
 		TerminalStrIndex: NO_DESCRIPTOR_STRING \
 	}
 
-#define AUDIO_STREAMING_INTERFACE(xxxALTERNATE_SETTING_NUMBERxxx, xxxNUM_CHANNELSxxx) AudioStreamInterface_Alt ## xxxALTERNATE_SETTING_NUMBERxxx: \
+#define AUDIO_STREAMING_INTERFACE(xxxALTERNATE_SETTING_NUMBERxxx, xxxNUM_CHANNELSxxx, xxxBYTES_PER_SAMPLExxx, xxxBITS_PER_SAMPLExxx) \
+	AudioStreamInterface_Alt ## xxxALTERNATE_SETTING_NUMBERxxx: \
 	{ \
 		Header: { \
 			Size: sizeof(USB_Descriptor_Interface_t), \
@@ -124,8 +125,8 @@ upwards-compatible it seems to me.
 		Subtype: DSUBTYPE_Format, \
 		FormatType: 0x01,  /* FORMAT_TYPE_1 */ \
 		Channels:  xxxNUM_CHANNELSxxx, \
-		SubFrameSize: 0x02,  /* 2 bytes per sample */ \
-		BitResolution: 0x0C, /* We use 12 bits of the 2 bytes */ \
+		SubFrameSize: xxxBYTES_PER_SAMPLExxx,  /* bytes per sample */ \
+		BitResolution: xxxBITS_PER_SAMPLExxx, /* how many bits of the bytes are used */ \
 		SampleFrequencyType: 0, /* continous sampling frequency setting supported */ \
 		SampleFrequencies: { \
 			SAMPLE_FREQ(LOWEST_AUDIO_SAMPLE_FREQUENCY), \
@@ -287,12 +288,10 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM =
 
 	/* mandatory actual audio stream interface (isochronous) */
 	/* alternates with actual audio on them. */
-	AUDIO_STREAMING_INTERFACE(1, 1),
-	AUDIO_STREAMING_INTERFACE(2, 2),
-// 	AUDIO_STREAMING_INTERFACE(3, 2),
-	AUDIO_STREAMING_INTERFACE(3, 4),
-// 	AUDIO_STREAMING_INTERFACE(5, 4),
-	AUDIO_STREAMING_INTERFACE(4, 8)
+	AUDIO_STREAMING_INTERFACE(1, 1, 1, 8),
+	AUDIO_STREAMING_INTERFACE(2, 2, 2, 12),
+	AUDIO_STREAMING_INTERFACE(3, 4, 2, 12),
+	AUDIO_STREAMING_INTERFACE(4, 8, 2, 12)
 };
 
 

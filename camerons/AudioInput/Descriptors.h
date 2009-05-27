@@ -282,16 +282,6 @@ typedef struct
   USB_AudioFormat_t                     AudioFormat4; /* format of the audio stream */
   USB_AudioStreamEndpoint_Std_t         AudioEndpoint4; /* isochronous endpoint */
   USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC4; /* audio-class specifics of the endpoint */
-//   USB_Descriptor_Interface_t            AudioStreamInterface_Alt5;  /* non-isochronous endpoint, chosen if we lack bandwidth. */
-//   USB_AudioInterface_AS_t               AudioStreamInterface_SPC5; /* describes the audio stream */
-//   USB_AudioFormat_t                     AudioFormat5; /* format of the audio stream */
-//   USB_AudioStreamEndpoint_Std_t         AudioEndpoint5; /* isochronous endpoint */
-//   USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC5; /* audio-class specifics of the endpoint */
-//   USB_Descriptor_Interface_t            AudioStreamInterface_Alt6;  /* non-isochronous endpoint, chosen if we lack bandwidth. */
-//   USB_AudioInterface_AS_t               AudioStreamInterface_SPC6; /* describes the audio stream */
-//   USB_AudioFormat_t                     AudioFormat6; /* format of the audio stream */
-//   USB_AudioStreamEndpoint_Std_t         AudioEndpoint6; /* isochronous endpoint */
-//   USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC6; /* audio-class specifics of the endpoint */
 } USB_Descriptor_Configuration_t;
 
 
