@@ -49,8 +49,7 @@ TIMER1_COMPA_vect:
 		rjmp	early_exit_cant_write
 
 		; jump to optimised code if there's only one channel (5 cycles if jumping to mono, else 4)
-		mov		temp_reg,				num_audio_channels
-		cpi		temp_reg,				1
+		tst		multichannel
 		brne	non_mono_sample
 		rjmp	mono_sample
 
@@ -264,7 +263,7 @@ tidy_up_and_exit:
 		pop		isr_iter
 		pop		read_lsb
 		pop		read_msb
-mono_tidy_up_and_exit:
+early_exit_tidy_up_and_exit:
 		/* restore previous endpoint */
 		sts		UENUM,					usb_ep_save
 		pop		usb_ep_save
@@ -282,7 +281,7 @@ early_exit_cant_write:
 		; abort ADC read/write (disable nSS (chip select) DD_SS(0) pin on PORTB)
 		sbi		_SFR_IO_ADDR(PORTB),	DD_SS
 		; jump to mono exit because we never pushed the extra registers
-		rjmp	mono_tidy_up_and_exit
+		rjmp	early_exit_tidy_up_and_exit
 
 ; optimised code for fast mono sampling
 /* We arrive here with the msb read/write 16 cycles in. We still need to read the lsb,
@@ -337,5 +336,16 @@ mono_sample:
 		cbr		temp_reg,				FIFOCON_MASK
 		sts		UEINTX,					temp_reg
 
-		; go to exit
-		rjmp	mono_tidy_up_and_exit
+mono_tidy_up_and_exit:
+		/* restore previous endpoint */
+		sts		UENUM,					usb_ep_save
+		pop		usb_ep_save
+		pop		temp_reg
+		/* restore status register */
+		out		_SFR_IO_ADDR(SREG),		temp_reg
+		pop		temp_reg
+
+;		cbi		_SFR_IO_ADDR(PORTC),	0
+
+		/* return from interrupt handler */
+		reti

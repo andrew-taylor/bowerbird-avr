@@ -118,6 +118,7 @@ void main(void)
 	
 	/* The number of the active configuration */
 	num_audio_channels = num_channels[active_config];
+	multichannel = num_audio_channels - 1;
 	
 	/* Initialise the ADC, and PreAmps. */
 	ADC_Init();
@@ -251,6 +252,7 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 					// update cached & pre-calculated values
 					active_config = wValue - 1;
 					num_audio_channels = num_channels[active_config];
+					multichannel = num_audio_channels - 1;
 					// set up the next channel array for the interrupt handler
 					UpdateNextChannelArray();
 					/* Tell the ADC to sample the first unmuted channel on the next read. */

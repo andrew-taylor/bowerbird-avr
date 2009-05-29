@@ -6,7 +6,7 @@ FILE="test.$TYPE"
 FORMAT="S16_LE"
 #CHANNELS=`amixer -c 1 | grep 'Capture channels'|tr '-' '\n'|wc -l`
 RECORDING_ARGS="-t $TYPE -v -Dplughw:1,0 $FILE"
-COMMON_ARGS="-f S16_LE"
+COMMON_ARGS="-f U8"
 
 while [ "$1" ]
 do
@@ -27,6 +27,10 @@ do
 	elif [ "$1" == "-c" ]
 	then
 		RECORDING_ARGS+=" $1 $2"
+		if [ "$2" -gt 1 ]
+		then
+			COMMON_ARGS="-f S16_LE"
+		fi
 		shift
 		shift
 	elif [ "$1" == "-a" ]
