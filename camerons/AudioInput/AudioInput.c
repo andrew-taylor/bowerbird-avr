@@ -91,9 +91,7 @@ void StopSamplingTimer(void);
 uint8_t Volumes_Init(void);
 static inline int16_t ConvertByteToVolume(uint8_t byte);
 static inline uint8_t ConvertVolumeToByte(int16_t volume);
-// void ProcessMuteRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
-void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
-// void ProcessAutomaticGainRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t channelNumber);
+void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t entityId, uint8_t channelNumber);
 void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType);
 static inline void SendNAK(void);
 static inline void ShowVal(uint16_t val);
@@ -225,7 +223,7 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 				
 				switch (controlSelector) {
 					case FEATURE_VOLUME:
-						ProcessVolumeRequest(bRequest, bmRequestType, channelNumber);
+						ProcessVolumeRequest(bRequest, bmRequestType, entityID, channelNumber);
 						break;
 					default:
 						SendNAK();
@@ -279,11 +277,11 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 
 
 void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
-		uint8_t channelNumber)
+		uint8_t entityId, uint8_t channelNumber)
 {
 	uint8_t buf;
 	int16_t value;
-	
+
 	// FIXME no master control.
 	// FIXME if channelNumber == 0xFF, then get all gain control settings.
 	if (channelNumber == 0 || channelNumber > MAX_AUDIO_CHANNELS) {
@@ -291,17 +289,25 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 		return;
 	}
 
+	// convert the USB channel number into our channels
+	uint8_t index = entityId == FEATURE_UNIT_ID1 ? 0
+			: entityId == FEATURE_UNIT_ID2 ? 1
+			: entityId == FEATURE_UNIT_ID4 ? 2
+			: entityId == FEATURE_UNIT_ID8 ? 3
+			: 0;
+	uint8_t our_channel_number = ADC_channels[index][channelNumber - 1];
+
 	// find out if its a "get" or a "set" request
 	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
 		switch (bRequest) {
 			case AUDIO_REQ_GET_Cur:
 				// FIXME this will be unneccessary once the preamp code actually works
-				if (PreAmps_get(channelNumber - 1, &buf)) {
+				if (PreAmps_get(our_channel_number, &buf)) {
 					// use approximate half-max as fall-back if error occurs
 					buf = 0x1f;
 				}
-				channel_volume[channelNumber - 1] = ConvertByteToVolume(buf);
-				value = channel_volume[channelNumber - 1];
+				channel_volume[our_channel_number] = ConvertByteToVolume(buf);
+				value = channel_volume[our_channel_number];
 				break;
 			case AUDIO_REQ_GET_Min:
 				value = ConvertByteToVolume(PREAMP_MINIMUM_SETPOINT);
@@ -329,11 +335,9 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 			Endpoint_ClearSetupIN();
 
 			// cache the value
-			channel_volume[channelNumber - 1] = value;
+			channel_volume[our_channel_number] = value;
 			// convert to a digital pot value
 			uint8_t pot_value = ConvertVolumeToByte(value);
-			// convert the USB channel number into our channels
-			uint8_t our_channel_number = ADC_channels[active_config][channelNumber - 1];
 			// set the pot
 			PreAmps_set(our_channel_number, pot_value);
 			return;

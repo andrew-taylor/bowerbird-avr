@@ -169,12 +169,10 @@ upwards-compatible it seems to me.
  * are routed to each USB channel for each configuration. The number
  * of USB channels in each configuration must match the configurations
  * below */
-uint8_t num_channels[NUM_ALTERNATE_SETTINGS] = { 1, 2, /*2, 4,*/ 4, 8 };
+uint8_t num_channels[NUM_ALTERNATE_SETTINGS] = { 1, 2, 4, 8 };
 uint8_t ADC_channels[NUM_ALTERNATE_SETTINGS][MAX_AUDIO_CHANNELS] = {
 		{ 0, 0, 0, 0, 0, 0, 0, 0 },
-// 		{ 0, 1, 0, 0, 0, 0, 0, 0 },
 		{ 0, 2, 0, 0, 0, 0, 0, 0 },
-// 		{ 0, 1, 2, 3, 0, 0, 0, 0 },
 		{ 0, 2, 4, 6, 0, 0, 0, 0 },
 		{ 0, 1, 2, 3, 4, 5, 6, 7 }
 };
