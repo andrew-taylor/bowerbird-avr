@@ -91,6 +91,7 @@ void StopSamplingTimer(void);
 uint8_t Volumes_Init(void);
 static inline int16_t ConvertByteToVolume(uint8_t byte);
 static inline uint8_t ConvertVolumeToByte(int16_t volume);
+void ProcessSelectorRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t entityId);
 void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType, uint8_t entityId, uint8_t channelNumber);
 void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType);
 static inline void SendNAK(void);
@@ -185,7 +186,7 @@ EVENT_HANDLER(USB_ConfigurationChanged)
 EVENT_HANDLER(USB_UnhandledControlPacket)
 {
 	static uint16_t recipient, wValue, wIndex, wLength;
-	static uint8_t controlSelector, channelNumber, entityID;
+	static uint8_t controlSelector, channelNumber, entityId;
 
 	if ((bmRequestType & CONTROL_REQTYPE_TYPE) == REQTYPE_CLASS)
 	{
@@ -210,12 +211,15 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 		}	
 		else if (recipient == REQREC_INTERFACE) {
 			// get the entity id
-			entityID  = wIndex >> 8;
+			entityId  = wIndex >> 8;
 			
-			if (entityID == FEATURE_UNIT_ID1
-					|| entityID == FEATURE_UNIT_ID2
-					|| entityID == FEATURE_UNIT_ID4
-					|| entityID == FEATURE_UNIT_ID8) {
+			if (entityId == SELECTOR_UNIT_ID1) {
+				ProcessSelectorRequest(bRequest, bmRequestType, entityId);
+			}
+			else if (entityId == FEATURE_UNIT_ID1
+					|| entityId == FEATURE_UNIT_ID2
+					|| entityId == FEATURE_UNIT_ID4
+					|| entityId == FEATURE_UNIT_ID8) {
 				// determine the relevant control type
 				controlSelector = wValue >> 8;
 				// determine the channel
@@ -223,7 +227,7 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 				
 				switch (controlSelector) {
 					case FEATURE_VOLUME:
-						ProcessVolumeRequest(bRequest, bmRequestType, entityID, channelNumber);
+						ProcessVolumeRequest(bRequest, bmRequestType, entityId, channelNumber);
 						break;
 					default:
 						SendNAK();
@@ -272,6 +276,55 @@ EVENT_HANDLER(USB_UnhandledControlPacket)
 	}
 	
 	// FIXME confirm NAK should be sent here
+	SendNAK();
+}
+
+
+void ProcessSelectorRequest(uint8_t bRequest, uint8_t bmRequestType,
+		uint8_t entityId)
+{
+	uint8_t value;
+	
+	// find out if its a "get" or a "set" request
+	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
+		switch (bRequest) {
+			case AUDIO_REQ_GET_Cur:
+				value = 1;
+				break;
+			case AUDIO_REQ_GET_Min:
+				value = 1;
+				break;
+			case AUDIO_REQ_GET_Max:
+				value = 2;
+				break;
+			case AUDIO_REQ_GET_Res:
+				value = 1;
+				break;
+			default:
+				// FIXME send NAK?
+				SendNAK();
+				return;
+		}
+		Endpoint_ClearSetupReceived();
+		// FIXME check this is correct order to send the three bytes
+		Endpoint_Write_Control_Stream(&value, 1);
+		Endpoint_ClearSetupOUT();
+		return;
+	}
+	else {
+		if (bRequest == AUDIO_REQ_SET_Cur) {
+			/* A request for the current setting of a particular channel's input gain. */
+			Endpoint_ClearSetupReceived();
+			Endpoint_Read_Control_Stream(&value, 1);
+			Endpoint_ClearSetupIN();
+
+			// HACK do nothing at the moment
+			
+			return;
+		}
+	}
+
+	// FIXME send NAK?
 	SendNAK();
 }
 

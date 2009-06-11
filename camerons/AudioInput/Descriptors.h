@@ -55,6 +55,7 @@
 #define DSUBTYPE_Header             0x01
 #define DSUBTYPE_InputTerminal      0x02
 #define DSUBTYPE_OutputTerminal     0x03
+#define DSUBTYPE_SelectorUnit		0x05
 #define DSUBTYPE_FeatureUnit        0x06
 
 #define DSUBTYPE_General            0x01
@@ -107,19 +108,32 @@
 #define SAMPLE_FREQ_HIGH_BYTE(x) (((uint32_t)x >> 16) & 0x000000FF)
 #define SAMPLE_FREQ(x) { LowWord: SAMPLE_FREQ_LOW_WORD(x), HighByte: SAMPLE_FREQ_HIGH_BYTE(x)}
 
-// Terminal IDs.
-#define INPUT_TERMINAL_ID1	0x01
-#define INPUT_TERMINAL_ID2	0x02
-#define INPUT_TERMINAL_ID4	0x03
-#define INPUT_TERMINAL_ID8	0x04
-#define FEATURE_UNIT_ID1	0x05
-#define FEATURE_UNIT_ID2	0x06
-#define FEATURE_UNIT_ID4	0x07
-#define FEATURE_UNIT_ID8	0x08
-#define OUTPUT_TERMINAL_ID1	0x09
-#define OUTPUT_TERMINAL_ID2	0x0A
-#define OUTPUT_TERMINAL_ID4	0x0B
-#define OUTPUT_TERMINAL_ID8	0x0C
+// Terminal IDs. (defined to make adding/removing ids easy)
+#define INPUT_TERMINAL_ID11	1
+#define INPUT_TERMINAL_ID13	(INPUT_TERMINAL_ID11 + 1)
+#define INPUT_TERMINAL_ID2	(INPUT_TERMINAL_ID13 + 1)
+#define INPUT_TERMINAL_ID4	(INPUT_TERMINAL_ID2 + 1)
+#define INPUT_TERMINAL_ID8	(INPUT_TERMINAL_ID4 + 1)
+#define SELECTOR_UNIT_ID1	(INPUT_TERMINAL_ID8 + 1)
+#define FEATURE_UNIT_ID1	(SELECTOR_UNIT_ID1 + 1)
+#define FEATURE_UNIT_ID2	(FEATURE_UNIT_ID1 + 1)
+#define FEATURE_UNIT_ID4	(FEATURE_UNIT_ID2 + 1)
+#define FEATURE_UNIT_ID8	(FEATURE_UNIT_ID4 + 1)
+#define OUTPUT_TERMINAL_ID1	(FEATURE_UNIT_ID8 + 1)
+#define OUTPUT_TERMINAL_ID2 (OUTPUT_TERMINAL_ID1 + 1)
+#define OUTPUT_TERMINAL_ID4 (OUTPUT_TERMINAL_ID2 + 1)
+#define OUTPUT_TERMINAL_ID8 (OUTPUT_TERMINAL_ID4 + 1)
+
+/* String Ids (defined to make adding/removing ids easy */
+#define MANUFACTURER_STRING_INDEX	1
+#define PRODUCT_STRING_INDEX		(MANUFACTURER_STRING_INDEX + 1)
+#define SERIAL_NUMBER_STRING		(PRODUCT_STRING_INDEX + 1 )
+#define INPUT_ID11_INDEX			(SERIAL_NUMBER_STRING + 1)
+#define INPUT_ID13_INDEX			(INPUT_ID11_INDEX + 1)
+#define INPUT_ID2_INDEX				(INPUT_ID13_INDEX + 1)
+#define INPUT_ID4_INDEX				(INPUT_ID2_INDEX + 1)
+#define INPUT_ID8_INDEX				(INPUT_ID4_INDEX + 1)
+#define SELECTOR1_INDEX				(INPUT_ID8_INDEX + 1)
 
 /* Type Defines: */
 
@@ -143,21 +157,36 @@ typedef struct
 { \
   USB_Descriptor_Header_t   Header; \
   uint8_t                   Subtype; \
-\
+ \
   uint8_t                   UnitID; \
   uint8_t                   SourceID; \
-\
+ \
   uint8_t                   ControlSize; \
   uint8_t                   MasterControls; \
   uint8_t                   ChannelControls[xxxNUM_CHANNELSxxx]; \
-\
-  uint8_t                   FeatureUnitStrIndex; \
+ \
+  uint8_t                   UnitStrIndex; \
 } USB_AudioFeatureUnit ## xxxNUM_CHANNELSxxx ## _t
 
 FEATURE_UNIT_STRUCT(8);
 FEATURE_UNIT_STRUCT(4);
 FEATURE_UNIT_STRUCT(2);
 FEATURE_UNIT_STRUCT(1);
+
+#define SELECTOR_UNIT_STRUCT(xxxNUM_INPUTSxxx) typedef struct \
+{ \
+  USB_Descriptor_Header_t   Header; \
+  uint8_t                   Subtype; \
+ \
+  uint8_t                   UnitID; \
+ \
+  uint8_t                   NumInputs; \
+  uint8_t                   SourceIds[xxxNUM_INPUTSxxx]; \
+ \
+  uint8_t                   UnitStrIndex; \
+} USB_AudioSelectorUnit ## xxxNUM_INPUTSxxx ## _t;
+
+SELECTOR_UNIT_STRUCT(2);
 
 typedef struct
 {
@@ -249,10 +278,12 @@ typedef struct
   USB_Descriptor_Configuration_Header_t Config;
   USB_Descriptor_Interface_t            AudioControlInterface;
   USB_AudioInterface_AC_t               AudioControlInterface_SPC; /* lists terminals, etc. */
-  USB_AudioInputTerminal_t              InputTerminal1; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal11; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal13; /* from the mics. */
   USB_AudioInputTerminal_t              InputTerminal2; /* from the mics. */
   USB_AudioInputTerminal_t              InputTerminal4; /* from the mics. */
   USB_AudioInputTerminal_t              InputTerminal8; /* from the mics. */
+  USB_AudioSelectorUnit2_t				SelectorUnit1;
   USB_AudioFeatureUnit1_t               FeatureUnit1; /* pre-amp controls */
   USB_AudioFeatureUnit2_t               FeatureUnit2; /* pre-amp controls */
   USB_AudioFeatureUnit4_t               FeatureUnit4; /* pre-amp controls */

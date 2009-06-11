@@ -44,33 +44,46 @@ upwards-compatible it seems to me.
 #define TIMES4(x) x, x, x, x
 #define TIMES8(x) x, x, x, x, x, x, x, x
 
-#define INPUT_TERMINAL(xxxNUM_CHANNELSxxx) { \
+#define INPUT_TERMINAL(xxxIDxxx, xxxNUM_CHANNELSxxx) { \
 		Header: { \
 			Size: sizeof(USB_AudioInputTerminal_t), \
 			Type: DTYPE_AudioInterface \
 		}, \
 		Subtype: DSUBTYPE_InputTerminal, \
-		TerminalID: INPUT_TERMINAL_ID ## xxxNUM_CHANNELSxxx, \
+		TerminalID: INPUT_TERMINAL_ID ## xxxIDxxx, \
 		TerminalType: TERMINAL_IN_MIC_ARRAY, \
-		AssociatedOutputTerminal: OUTPUT_TERMINAL_ID ## xxxNUM_CHANNELSxxx, \
+		AssociatedOutputTerminal: 0, \
 		TotalChannels: xxxNUM_CHANNELSxxx, \
 		ChannelConfig: 0,  /* spatial characteristics (0 == unspecified) */ \
 		ChannelStrIndex: NO_DESCRIPTOR_STRING, \
-		TerminalStrIndex: NO_DESCRIPTOR_STRING \
+		TerminalStrIndex: INPUT_ID ## xxxIDxxx ## _INDEX \
 	}
 
-#define FEATURE_UNIT(xxxNUM_CHANNELSxxx) { \
+/* first argument is the number of inputs, subsequent args are the input terminal ids */
+#define SELECTOR_UNIT(xxxNUM_CHANNELSxxx, xxxNUM_INPUTSxxx, ...) { \
+		Header: { \
+			Size: sizeof(USB_AudioSelectorUnit ## xxxNUM_INPUTSxxx ##_t), \
+			Type: DTYPE_AudioInterface \
+		}, \
+		Subtype: DSUBTYPE_SelectorUnit, \
+		UnitID: SELECTOR_UNIT_ID ## xxxNUM_CHANNELSxxx, \
+		NumInputs: xxxNUM_INPUTSxxx, \
+		SourceIds: { __VA_ARGS__ }, \
+		UnitStrIndex: SELECTOR ## xxxNUM_CHANNELSxxx ## _INDEX \
+	}
+
+#define FEATURE_UNIT(xxxNUM_CHANNELSxxx, xxxSOURCE_IDxxx) { \
 		Header: { \
 			Size: sizeof(USB_AudioFeatureUnit ## xxxNUM_CHANNELSxxx ##_t), \
 			Type: DTYPE_AudioInterface \
 		}, \
 		Subtype: DSUBTYPE_FeatureUnit, \
 		UnitID: FEATURE_UNIT_ID ## xxxNUM_CHANNELSxxx, \
-		SourceID: INPUT_TERMINAL_ID ## xxxNUM_CHANNELSxxx, \
+		SourceID: xxxSOURCE_IDxxx, \
 		ControlSize: 1,  /* the controls are described with one byte. */ \
 		MasterControls: 0, /* master, applies to all channels. */ \
 		ChannelControls: { TIMES ## xxxNUM_CHANNELSxxx(FEATURE_VOLUME) },  /* per-channel controls, one entry per channel */ \
-		FeatureUnitStrIndex: NO_DESCRIPTOR_STRING \
+		UnitStrIndex: NO_DESCRIPTOR_STRING \
 	}
 
 #define OUTPUT_TERMINAL(xxxNUM_CHANNELSxxx) { \
@@ -81,7 +94,7 @@ upwards-compatible it seems to me.
 		Subtype: DSUBTYPE_OutputTerminal, \
 		TerminalID: OUTPUT_TERMINAL_ID ## xxxNUM_CHANNELSxxx, \
 		TerminalType: TERMINAL_STREAMING, \
-		AssociatedInputTerminal: INPUT_TERMINAL_ID ## xxxNUM_CHANNELSxxx, \
+		AssociatedInputTerminal: 0, \
 		SourceID: FEATURE_UNIT_ID ## xxxNUM_CHANNELSxxx, /* source from the feature unit */ \
 		TerminalStrIndex: NO_DESCRIPTOR_STRING \
 	}
@@ -194,9 +207,9 @@ USB_Descriptor_Device_t DeviceDescriptor PROGMEM = {
 	ProductID: 0x2047,
 	ReleaseNumber: 0x0100,
 
-	ManufacturerStrIndex: 0x01,
-	ProductStrIndex: 0x02,
-	SerialNumStrIndex: 0x03,
+	ManufacturerStrIndex: MANUFACTURER_STRING_INDEX,
+	ProductStrIndex: PRODUCT_STRING_INDEX,
+	SerialNumStrIndex: SERIAL_NUMBER_STRING,
 
 	NumberOfConfigurations: 1
 };
@@ -240,27 +253,31 @@ USB_Descriptor_Configuration_t ConfigurationDescriptor PROGMEM =
 		Subtype: DSUBTYPE_Header,
 		ACSpecification: VERSION_BCD(01.00), /* follows the audio spec 1.0 */
 		TotalLength: (sizeof(USB_AudioInterface_AC_t)
-				+ 2 * sizeof(USB_AudioInputTerminal_t)
+				+ 4 * sizeof(USB_AudioInputTerminal_t)
+				+ sizeof(USB_AudioSelectorUnit2_t)
 				+ sizeof(USB_AudioFeatureUnit1_t)
 				+ sizeof(USB_AudioFeatureUnit2_t)
 				+ sizeof(USB_AudioFeatureUnit4_t)
 				+ sizeof(USB_AudioFeatureUnit8_t)
-				+ 2 * sizeof(USB_AudioOutputTerminal_t)),
+				+ 4 * sizeof(USB_AudioOutputTerminal_t)),
 		InCollection: 1,  /* 1 streaming interface */
 		InterfaceNumbers: { 1 },   /* interface 1 is the stream */
 	},
 
 	/* We have one audio cluster, specified as an array of microphones */
-	InputTerminal1: INPUT_TERMINAL(1),
-	InputTerminal2: INPUT_TERMINAL(2),
-	InputTerminal4: INPUT_TERMINAL(4),
-	InputTerminal8: INPUT_TERMINAL(8),
+	InputTerminal11: INPUT_TERMINAL(11, 1),
+	InputTerminal13: INPUT_TERMINAL(13, 1),
+	InputTerminal2: INPUT_TERMINAL(2, 2),
+	InputTerminal4: INPUT_TERMINAL(4, 4),
+	InputTerminal8: INPUT_TERMINAL(8, 8),
+
+	SelectorUnit1: SELECTOR_UNIT(1, 2, INPUT_TERMINAL_ID11, INPUT_TERMINAL_ID13),
 
 	/* Provide access to the pre-amps via a "feature unit". */
-	FeatureUnit1: FEATURE_UNIT(1),
-	FeatureUnit2: FEATURE_UNIT(2),
-	FeatureUnit4: FEATURE_UNIT(4),
-	FeatureUnit8: FEATURE_UNIT(8),
+	FeatureUnit1: FEATURE_UNIT(1, SELECTOR_UNIT_ID1),
+	FeatureUnit2: FEATURE_UNIT(2, INPUT_TERMINAL_ID2),
+	FeatureUnit4: FEATURE_UNIT(4, INPUT_TERMINAL_ID4),
+	FeatureUnit8: FEATURE_UNIT(8, INPUT_TERMINAL_ID8),
 
 	/* mandatory output terminal. */
 	OutputTerminal1: OUTPUT_TERMINAL(1),
@@ -327,6 +344,54 @@ USB_Descriptor_String_t SerialNumberString PROGMEM = {
 	UnicodeString: L"42"
 };
 
+USB_Descriptor_String_t InputTerminalString11 PROGMEM = {
+	Header: {
+		Size: USB_STRING_LEN(5),
+		Type: DTYPE_String
+	},
+	UnicodeString: L"Mic 1"
+};
+
+USB_Descriptor_String_t InputTerminalString13 PROGMEM = {
+	Header: {
+		Size: USB_STRING_LEN(5),
+		Type: DTYPE_String
+	},
+	UnicodeString: L"Mic 3"
+};
+
+USB_Descriptor_String_t InputTerminalString2 PROGMEM = {
+	Header: {
+		Size: USB_STRING_LEN(7),
+		Type: DTYPE_String
+	},
+	UnicodeString: L"Mic 1,3"
+};
+
+USB_Descriptor_String_t InputTerminalString4 PROGMEM = {
+	Header: {
+		Size: USB_STRING_LEN(11),
+		Type: DTYPE_String
+	},
+	UnicodeString: L"Mic 1,3,5,7"
+};
+
+USB_Descriptor_String_t InputTerminalString8 PROGMEM = {
+	Header: {
+		Size: USB_STRING_LEN(7),
+		Type: DTYPE_String
+	},
+	UnicodeString: L"Mic 1-8"
+};
+
+USB_Descriptor_String_t SelectorString1 PROGMEM = {
+	Header: {
+		Size: USB_STRING_LEN(19),
+		Type: DTYPE_String
+	},
+	UnicodeString: L"Mic Selector (mono)"
+};
+
 
 bool USB_GetDescriptor(const uint16_t wValue, const uint8_t wIndex,
 		void **const DescriptorAddress, uint16_t * const DescriptorSize)
@@ -350,17 +415,41 @@ bool USB_GetDescriptor(const uint16_t wValue, const uint8_t wIndex,
 					Address = DESCRIPTOR_ADDRESS(LanguageString);
 					Size = pgm_read_byte(&LanguageString.Header.Size);
 					break;
-				case 0x01:
+				case MANUFACTURER_STRING_INDEX:
 					Address = DESCRIPTOR_ADDRESS(ManufacturerString);
 					Size = pgm_read_byte(&ManufacturerString.Header.Size);
 					break;
-				case 0x02:
+				case PRODUCT_STRING_INDEX:
 					Address = DESCRIPTOR_ADDRESS(ProductString);
 					Size = pgm_read_byte(&ProductString.Header.Size);
 					break;
-				case 0x03:
+				case SERIAL_NUMBER_STRING:
 					Address = DESCRIPTOR_ADDRESS(SerialNumberString);
 					Size = pgm_read_byte(&SerialNumberString.Header.Size);
+					break;
+				case INPUT_ID11_INDEX:
+					Address = DESCRIPTOR_ADDRESS(InputTerminalString11);
+					Size = pgm_read_byte(&InputTerminalString11.Header.Size);
+					break;
+				case INPUT_ID13_INDEX:
+					Address = DESCRIPTOR_ADDRESS(InputTerminalString13);
+					Size = pgm_read_byte(&InputTerminalString13.Header.Size);
+					break;
+				case INPUT_ID2_INDEX:
+					Address = DESCRIPTOR_ADDRESS(InputTerminalString2);
+					Size = pgm_read_byte(&InputTerminalString2.Header.Size);
+					break;
+				case INPUT_ID4_INDEX:
+					Address = DESCRIPTOR_ADDRESS(InputTerminalString4);
+					Size = pgm_read_byte(&InputTerminalString4.Header.Size);
+					break;
+				case INPUT_ID8_INDEX:
+					Address = DESCRIPTOR_ADDRESS(InputTerminalString8);
+					Size = pgm_read_byte(&InputTerminalString8.Header.Size);
+					break;
+				case SELECTOR1_INDEX:
+					Address = DESCRIPTOR_ADDRESS(SelectorString1);
+					Size = pgm_read_byte(&SelectorString1.Header.Size);
 					break;
 			}
 			break;
