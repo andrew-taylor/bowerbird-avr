@@ -109,31 +109,57 @@
 #define SAMPLE_FREQ(x) { LowWord: SAMPLE_FREQ_LOW_WORD(x), HighByte: SAMPLE_FREQ_HIGH_BYTE(x)}
 
 // Terminal IDs. (defined to make adding/removing ids easy)
-#define INPUT_TERMINAL_ID11	1
-#define INPUT_TERMINAL_ID13	(INPUT_TERMINAL_ID11 + 1)
-#define INPUT_TERMINAL_ID2	(INPUT_TERMINAL_ID13 + 1)
-#define INPUT_TERMINAL_ID4	(INPUT_TERMINAL_ID2 + 1)
-#define INPUT_TERMINAL_ID8	(INPUT_TERMINAL_ID4 + 1)
-#define SELECTOR_UNIT_ID1	(INPUT_TERMINAL_ID8 + 1)
-#define FEATURE_UNIT_ID1	(SELECTOR_UNIT_ID1 + 1)
-#define FEATURE_UNIT_ID2	(FEATURE_UNIT_ID1 + 1)
-#define FEATURE_UNIT_ID4	(FEATURE_UNIT_ID2 + 1)
-#define FEATURE_UNIT_ID8	(FEATURE_UNIT_ID4 + 1)
-#define OUTPUT_TERMINAL_ID1	(FEATURE_UNIT_ID8 + 1)
-#define OUTPUT_TERMINAL_ID2 (OUTPUT_TERMINAL_ID1 + 1)
-#define OUTPUT_TERMINAL_ID4 (OUTPUT_TERMINAL_ID2 + 1)
-#define OUTPUT_TERMINAL_ID8 (OUTPUT_TERMINAL_ID4 + 1)
+#define INPUT_TERMINAL_ID1_1	1
+#define INPUT_TERMINAL_ID1_3	(INPUT_TERMINAL_ID1_1 + 1)
+#define INPUT_TERMINAL_ID1_5	(INPUT_TERMINAL_ID1_3 + 1)
+#define INPUT_TERMINAL_ID1_7	(INPUT_TERMINAL_ID1_5 + 1)
+#define INPUT_TERMINAL_ID2_13	(INPUT_TERMINAL_ID1_7 + 1)
+#define INPUT_TERMINAL_ID2_35	(INPUT_TERMINAL_ID2_13 + 1)
+#define INPUT_TERMINAL_ID2_57	(INPUT_TERMINAL_ID2_35 + 1)
+#define INPUT_TERMINAL_ID2_71	(INPUT_TERMINAL_ID2_57 + 1)
+#define INPUT_TERMINAL_ID4_1357	(INPUT_TERMINAL_ID2_71 + 1)
+#define INPUT_TERMINAL_ID4_1234	(INPUT_TERMINAL_ID4_1357 + 1)
+#define INPUT_TERMINAL_ID4_3456	(INPUT_TERMINAL_ID4_1234 + 1)
+#define INPUT_TERMINAL_ID4_5678	(INPUT_TERMINAL_ID4_3456 + 1)
+#define INPUT_TERMINAL_ID4_7812	(INPUT_TERMINAL_ID4_5678 + 1)
+#define INPUT_TERMINAL_ID8		(INPUT_TERMINAL_ID4_7812 + 1)
+#define SELECTOR_UNIT_ID1		(INPUT_TERMINAL_ID8 + 1)
+#define SELECTOR_UNIT_ID2		(SELECTOR_UNIT_ID1 + 1)
+#define SELECTOR_UNIT_ID4		(SELECTOR_UNIT_ID2 + 1)
+#define FEATURE_UNIT_ID1		(SELECTOR_UNIT_ID4 + 1)
+#define FEATURE_UNIT_ID2		(FEATURE_UNIT_ID1 + 1)
+#define FEATURE_UNIT_ID4		(FEATURE_UNIT_ID2 + 1)
+#define FEATURE_UNIT_ID8		(FEATURE_UNIT_ID4 + 1)
+#define OUTPUT_TERMINAL_ID1		(FEATURE_UNIT_ID8 + 1)
+#define OUTPUT_TERMINAL_ID2 	(OUTPUT_TERMINAL_ID1 + 1)
+#define OUTPUT_TERMINAL_ID4 	(OUTPUT_TERMINAL_ID2 + 1)
+#define OUTPUT_TERMINAL_ID8 	(OUTPUT_TERMINAL_ID4 + 1)
 
 /* String Ids (defined to make adding/removing ids easy */
 #define MANUFACTURER_STRING_INDEX	1
 #define PRODUCT_STRING_INDEX		(MANUFACTURER_STRING_INDEX + 1)
-#define SERIAL_NUMBER_STRING		(PRODUCT_STRING_INDEX + 1 )
-#define INPUT_ID11_INDEX			(SERIAL_NUMBER_STRING + 1)
-#define INPUT_ID13_INDEX			(INPUT_ID11_INDEX + 1)
-#define INPUT_ID2_INDEX				(INPUT_ID13_INDEX + 1)
-#define INPUT_ID4_INDEX				(INPUT_ID2_INDEX + 1)
-#define INPUT_ID8_INDEX				(INPUT_ID4_INDEX + 1)
-#define SELECTOR1_INDEX				(INPUT_ID8_INDEX + 1)
+#define SERIAL_NUMBER_STRING_INDEX	(PRODUCT_STRING_INDEX + 1 )
+#define INPUT_ID1_1_STRING_INDEX	(SERIAL_NUMBER_STRING_INDEX + 1)
+#define INPUT_ID1_3_STRING_INDEX	(INPUT_ID1_1_STRING_INDEX + 1)
+#define INPUT_ID1_5_STRING_INDEX	(INPUT_ID1_3_STRING_INDEX + 1)
+#define INPUT_ID1_7_STRING_INDEX	(INPUT_ID1_5_STRING_INDEX + 1)
+#define INPUT_ID2_13_STRING_INDEX	(INPUT_ID1_7_STRING_INDEX + 1)
+#define INPUT_ID2_35_STRING_INDEX	(INPUT_ID2_13_STRING_INDEX + 1)
+#define INPUT_ID2_57_STRING_INDEX	(INPUT_ID2_35_STRING_INDEX + 1)
+#define INPUT_ID2_71_STRING_INDEX	(INPUT_ID2_57_STRING_INDEX + 1)
+#define INPUT_ID4_1357_STRING_INDEX	(INPUT_ID2_71_STRING_INDEX + 1)
+#define INPUT_ID4_1234_STRING_INDEX	(INPUT_ID4_1357_STRING_INDEX + 1)
+#define INPUT_ID4_3456_STRING_INDEX	(INPUT_ID4_1234_STRING_INDEX + 1)
+#define INPUT_ID4_5678_STRING_INDEX	(INPUT_ID4_3456_STRING_INDEX + 1)
+#define INPUT_ID4_7812_STRING_INDEX	(INPUT_ID4_5678_STRING_INDEX + 1)
+#define INPUT_ID8_STRING_INDEX		(INPUT_ID4_7812_STRING_INDEX + 1)
+#define SELECTOR_ID1_STRING_INDEX	(INPUT_ID8_STRING_INDEX + 1)
+#define SELECTOR_ID2_STRING_INDEX	(SELECTOR_ID1_STRING_INDEX + 1)
+#define SELECTOR_ID4_STRING_INDEX	(SELECTOR_ID2_STRING_INDEX + 1)
+#define FEATURE_ID1_STRING_INDEX	(SELECTOR_ID4_STRING_INDEX + 1)
+#define FEATURE_ID2_STRING_INDEX	(FEATURE_ID1_STRING_INDEX + 1)
+#define FEATURE_ID4_STRING_INDEX	(FEATURE_ID2_STRING_INDEX + 1)
+#define FEATURE_ID8_STRING_INDEX	(FEATURE_ID4_STRING_INDEX + 1)
 
 /* Type Defines: */
 
@@ -186,7 +212,8 @@ FEATURE_UNIT_STRUCT(1);
   uint8_t                   UnitStrIndex; \
 } USB_AudioSelectorUnit ## xxxNUM_INPUTSxxx ## _t;
 
-SELECTOR_UNIT_STRUCT(2);
+SELECTOR_UNIT_STRUCT(4);
+SELECTOR_UNIT_STRUCT(5);
 
 typedef struct
 {
@@ -278,12 +305,23 @@ typedef struct
   USB_Descriptor_Configuration_Header_t Config;
   USB_Descriptor_Interface_t            AudioControlInterface;
   USB_AudioInterface_AC_t               AudioControlInterface_SPC; /* lists terminals, etc. */
-  USB_AudioInputTerminal_t              InputTerminal11; /* from the mics. */
-  USB_AudioInputTerminal_t              InputTerminal13; /* from the mics. */
-  USB_AudioInputTerminal_t              InputTerminal2; /* from the mics. */
-  USB_AudioInputTerminal_t              InputTerminal4; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal1_1; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal1_3; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal1_5; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal1_7; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal2_13; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal2_35; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal2_57; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal2_71; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal4_1357; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal4_1234; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal4_3456; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal4_5678; /* from the mics. */
+  USB_AudioInputTerminal_t              InputTerminal4_7812; /* from the mics. */
   USB_AudioInputTerminal_t              InputTerminal8; /* from the mics. */
-  USB_AudioSelectorUnit2_t				SelectorUnit1;
+  USB_AudioSelectorUnit4_t				SelectorUnit1;
+  USB_AudioSelectorUnit4_t				SelectorUnit2;
+  USB_AudioSelectorUnit5_t				SelectorUnit4;
   USB_AudioFeatureUnit1_t               FeatureUnit1; /* pre-amp controls */
   USB_AudioFeatureUnit2_t               FeatureUnit2; /* pre-amp controls */
   USB_AudioFeatureUnit4_t               FeatureUnit4; /* pre-amp controls */
@@ -315,10 +353,6 @@ typedef struct
   USB_AudioStreamEndpoint_Spc_t         AudioEndpoint_SPC4; /* audio-class specifics of the endpoint */
 } USB_Descriptor_Configuration_t;
 
-
-/** expose public variables */ 
-extern uint8_t num_channels[NUM_ALTERNATE_SETTINGS];
-extern uint8_t ADC_channels[NUM_ALTERNATE_SETTINGS][MAX_AUDIO_CHANNELS];
 
 
 /** Function Prototypes: */
