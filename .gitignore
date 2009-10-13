@@ -6,4 +6,4 @@
 *.lst
 *.map
 *.sym
-
+*.o
