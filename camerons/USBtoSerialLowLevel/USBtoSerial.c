@@ -29,6 +29,39 @@
 */
 
 #include "USBtoSerial.h"
+#include <util/delay.h>
+#include <stdarg.h>
+#include <string.h>
+#include <avr/wdt.h>
+
+
+#define MAX_LINE_LENGTH 1024
+#define AVR_LINE_MARKER "#!# AVR"
+#define POWER_PORT PORTA
+#define POWER_CMD "power"
+#define POWER_ON "on"
+#define POWER_OFF "off"
+#define POWER_BEAGLE "beagle"
+#define POWER_PIN_BEAGLE 0
+#define POWER_LCD "lcd"
+#define POWER_PIN_LCD 1
+#define LCD_PORT PORTC
+#define LCD_CMD "lcd"
+#define RESET_CMD "REALLY reset the AVR"
+
+
+#define soft_reset()        \
+do                          \
+{                           \
+    wdt_enable(WDTO_15MS);  \
+    for(;;)                 \
+    {                       \
+    }                       \
+} while(0)
+
+// Prototype for watchdog initialisation (to disable it on boot)
+void wdt_init(void) __attribute__((naked)) __attribute__((section(".init3")));
+
 
 /* Globals: */
 /** Contains the current baud rate and other settings of the virtual serial port.
@@ -36,19 +69,29 @@
  *  These values are set by the host via a class-specific request, and the physical USART should be reconfigured to match the
  *  new settings each time they are changed by the host.
  */
-CDC_Line_Coding_t LineEncoding = { .BaudRateBPS = 0,
-                                   .CharFormat  = OneStopBit,
-                                   .ParityType  = Parity_None,
-                                   .DataBits    = 8            };
+CDC_Line_Coding_t LineEncoding = { 
+	.BaudRateBPS = 115200,
+	.CharFormat  = OneStopBit,
+	.ParityType  = Parity_None,
+	.DataBits    = 8
+};
 
-/** Ring (circular) buffer to hold the TX data - data from the host to the attached device on the serial port. */
-RingBuff_t Tx_Buffer;
-
-/** Ring (circular) buffer to hold the RX data - data from the attached device on the serial port to the host. */
+/** Ring (circular) buffer to hold the RX data - data from the host to the attached device on the serial port. */
 RingBuff_t Rx_Buffer;
 
-/** Flag to indicate if the USART is currently transmitting data from the Tx_Buffer circular buffer. */
+/** Ring (circular) buffer to hold the TX data - data from the attached device on the serial port to the host. */
+RingBuff_t Tx_Buffer;
+
+/** Flag to indicate if the USART is currently transmitting data from the Rx_Buffer circular buffer. */
 volatile bool Transmitting = false;
+
+/** Buffer to store the last line received on the serial port so we can process
+ * commands to the AVR
+ */
+char SerialBuffer[MAX_LINE_LENGTH];
+short SerialBufferIndex = 0;
+
+
 
 /** Main program entry point. This routine configures the hardware required by the application, then
  *  starts the scheduler to run the application tasks.
@@ -56,8 +99,8 @@ volatile bool Transmitting = false;
 int main(void)
 {
 	/* Ring buffer Initialization */
-	Buffer_Initialize(&Tx_Buffer);
 	Buffer_Initialize(&Rx_Buffer);
+	Buffer_Initialize(&Tx_Buffer);
 
 	SetupHardware();
 
@@ -81,7 +124,8 @@ void SetupHardware(void)
 	clock_prescale_set(clock_div_1);
 
 	/* Hardware Initialization */
-	Serial_Init(115200, false);
+	Serial_Init(LineEncoding.BaudRateBPS, true);
+	UBRR1 = 8;
 	LEDs_Init();
 	USB_Init();
 
@@ -108,8 +152,8 @@ void EVENT_USB_Device_Connect(void)
 void EVENT_USB_Device_Disconnect(void)
 {	
 	/* Reset Tx and Rx buffers, device disconnected */
-	Buffer_Initialize(&Tx_Buffer);
 	Buffer_Initialize(&Rx_Buffer);
+	Buffer_Initialize(&Tx_Buffer);
 
 	/* Indicate USB not ready */
 	LEDs_SetAllLEDs(LEDMASK_USB_NOTREADY);
@@ -146,7 +190,7 @@ void EVENT_USB_Device_ConfigurationChanged(void)
 	}
 
 	/* Reset line encoding baud rate so that the host knows to send new values */
-	LineEncoding.BaudRateBPS = 0;
+	//LineEncoding.BaudRateBPS = 0;
 }
 
 /** Event handler for the USB_UnhandledControlRequest event. This is used to catch standard and class specific
@@ -214,9 +258,18 @@ void EVENT_USB_Device_UnhandledControlRequest(void)
 /** Task to manage CDC data transmission and reception to and from the host, from and to the physical USART. */
 void CDC_Task(void)
 {
+	/* debug
+	if (USB_DeviceState == DEVICE_STATE_Unattached) PORTA = 1 << 0;
+	else if (USB_DeviceState == DEVICE_STATE_Powered) PORTA = 1 << 1;
+	else if (USB_DeviceState == DEVICE_STATE_Default) PORTA = 1 << 2;
+	else if (USB_DeviceState == DEVICE_STATE_Addressed) PORTA = 1 << 3;
+	else if (USB_DeviceState == DEVICE_STATE_Configured) PORTA = 1 << 4;
+	else if (USB_DeviceState == DEVICE_STATE_Suspended) PORTA = 1 << 5;
+	else PORTA = 1 << 7; // */
+
 	/* Device must be connected and configured for the task to run */
 	if (USB_DeviceState != DEVICE_STATE_Configured)
-	  return;
+		return;
 	  
 #if 0
 	/* NOTE: Here you can use the notification endpoint to send back line state changes to the host, for the special RS-232
@@ -249,10 +302,10 @@ void CDC_Task(void)
 	if (Endpoint_IsOUTReceived())
 	{
 		/* Read the bytes in from the endpoint into the buffer while space is available */
-		while (Endpoint_BytesInEndpoint() && (Tx_Buffer.Elements != BUFF_STATICSIZE))
+		while (Endpoint_BytesInEndpoint() && (Rx_Buffer.Elements != BUFF_STATICSIZE))
 		{
 			/* Store each character from the endpoint */
-			Buffer_StoreElement(&Tx_Buffer, Endpoint_Read_Byte());
+			Buffer_StoreElement(&Rx_Buffer, Endpoint_Read_Byte());
 		}
 		
 		/* Check to see if all bytes in the current packet have been read */
@@ -264,23 +317,24 @@ void CDC_Task(void)
 	}
 	
 	/* Check if Rx buffer contains data - if so, send it */
-	if (Tx_Buffer.Elements)
-	  Serial_TxByte(Buffer_GetElement(&Tx_Buffer));
+	if (Rx_Buffer.Elements)
+	  Serial_TxByte(Buffer_GetElement(&Rx_Buffer));
 
 	/* Select the Serial Tx Endpoint */
 	Endpoint_SelectEndpoint(CDC_TX_EPNUM);
 
 	/* Check if the Tx buffer contains anything to be sent to the host */
-	if ((Rx_Buffer.Elements) && LineEncoding.BaudRateBPS)
+	if ((Tx_Buffer.Elements) && LineEncoding.BaudRateBPS)
 	{
 		/* Wait until Serial Tx Endpoint Ready for Read/Write */
 		Endpoint_WaitUntilReady();
 		
 		/* Write the bytes from the buffer to the endpoint while space is available */
-		while (Rx_Buffer.Elements && Endpoint_IsReadWriteAllowed())
+		while (Tx_Buffer.Elements && Endpoint_IsReadWriteAllowed())
 		{
+			uint8_t DataByte = Buffer_GetElement(&Tx_Buffer);
 			/* Write each byte retreived from the buffer to the endpoint */
-			Endpoint_Write_Byte(Buffer_GetElement(&Rx_Buffer));
+			Endpoint_Write_Byte(DataByte);
 		}
 		
 		/* Remember if the packet to send completely fills the endpoint */
@@ -291,7 +345,7 @@ void CDC_Task(void)
 
 		/* If no more data to send and the last packet filled the endpoint, send an empty packet to release
 		 * the buffer on the receiver (otherwise all data will be cached until a non-full packet is received) */
-		if (IsFull && !(Rx_Buffer.Elements))
+		if (IsFull && !(Tx_Buffer.Elements))
 		{
 			/* Wait until Serial Tx Endpoint Ready for Read/Write */
 			Endpoint_WaitUntilReady();
@@ -302,19 +356,154 @@ void CDC_Task(void)
 	}
 }
 
+
+/** Process bytes received on the serial port to see if there's any commands to
+ *  the AVR itself
+ */
+void ProcessByte(uint8_t ReceivedByte)
+{
+	// check if this is the end of the line
+	if (ReceivedByte == '\n' || ReceivedByte == '\r') {
+		// null-terminate the string in the buffer
+		SerialBuffer[SerialBufferIndex] = '\0';
+		// see if this is a line for the AVR
+		if (strncmp(SerialBuffer, AVR_LINE_MARKER, strlen(AVR_LINE_MARKER)) == 0) {
+			char *cmd = SerialBuffer + strlen(AVR_LINE_MARKER) + 1;
+			
+			// see if we understand the command
+			if (strncmp(cmd, POWER_CMD, strlen(POWER_CMD)) == 0) {
+				ProcessPowerCommand(cmd + strlen(POWER_CMD) + 1);
+			}
+			else if (strncmp(cmd, LCD_CMD, strlen(LCD_CMD)) == 0) {
+				ProcessLCDCommand(cmd + strlen(LCD_CMD) + 1);
+			}
+			else if (strncmp(cmd, RESET_CMD, strlen(RESET_CMD)) == 0) {
+				soft_reset();
+			}
+			else {
+				WriteStringToUSB("\r\nGot unknown AVR command '%s'\r\n", cmd);
+			}
+		}
+
+		// clear the buffer
+		SerialBufferIndex = 0;
+	}
+	else if (SerialBufferIndex < MAX_LINE_LENGTH) {
+		SerialBuffer[SerialBufferIndex++] = ReceivedByte;
+	}
+}
+
+
+/** Handle a command to turn on or off power to one of the devices.
+ *  This is just toggling gpios.
+ */
+void ProcessPowerCommand(char *cmd)
+{
+	int new_power_state, pin;
+	char *device_name;
+
+	// parse if it's an on or an off command
+	if (strncmp(cmd, POWER_ON, strlen(POWER_ON)) == 0) {
+		new_power_state = 1;
+		cmd += strlen(POWER_ON) + 1;
+	}
+	else if (strncmp(cmd, POWER_OFF, strlen(POWER_OFF)) == 0) {
+		new_power_state = 0;
+		cmd += strlen(POWER_OFF) + 1;
+	}
+	else {
+		WriteStringToUSB("\r\nGot unrecognised POWER command '%s'\r\n", cmd);
+		return;
+	}
+
+	// now parse what device to turn on or off
+	if (strncmp(cmd, POWER_BEAGLE, strlen(POWER_BEAGLE)) == 0) {
+		pin = POWER_PIN_BEAGLE;
+		device_name = "Beagleboard";
+	}
+	else if (strncmp(cmd, POWER_LCD, strlen(POWER_LCD)) == 0) {
+		pin = POWER_PIN_LCD;
+		device_name = "LCD Panel";
+	}
+	else {
+		WriteStringToUSB("\r\nGot request to turn %s unknown device: '%s'\r\n", 
+				new_power_state ? "on" : "off", cmd);
+		return;
+	}
+
+	// carry out command
+	if (new_power_state)
+		POWER_PORT |= (1 << pin);
+	else
+		POWER_PORT &= ~(1 << pin);
+
+	// report
+	WriteStringToUSB("\r\nAVR Power System: Turned %s %s\r\n",
+				new_power_state ? "on" : "off", device_name);
+}
+
+
+/** Handle a command to put a message on the LCD.
+ */
+void ProcessLCDCommand(char *cmd)
+{
+	// TODO implement this
+	WriteStringToUSB("\r\nSent to LCD: '%s'\r\n", cmd);
+}
+
+
+/** Write to the USB endpoint. This is actually done by pushing the string onto
+ * the ring buffer, so we can't get race conditions
+ */
+void WriteStringToUSB(char *format, ...)
+{
+	int i, len;
+
+	char string[MAX_LINE_LENGTH];
+	va_list ap;
+	va_start(ap, format);
+	vsnprintf(string, MAX_LINE_LENGTH, format, ap);
+	va_end(ap);
+
+	len = strlen(string);
+	for (i = 0; i < len; ++i)
+		Buffer_StoreElement(&Tx_Buffer, string[i]);
+}
+
+
 /** ISR to handle the USART receive complete interrupt, fired each time the USART has received a character. This stores the received
- *  character into the Rx_Buffer circular buffer for later transmission to the host.
+ *  character into the Tx_Buffer circular buffer for later transmission to the host.
  */
 ISR(USART1_RX_vect, ISR_BLOCK)
 {
 	uint8_t ReceivedByte = UDR1;
 
-	// show the byte on port A
-	PORTA = ReceivedByte;
-
 	/* Only store received characters if the USB interface is connected */
 	if ((USB_DeviceState == DEVICE_STATE_Configured) && LineEncoding.BaudRateBPS)
-	  Buffer_StoreElement(&Rx_Buffer, ReceivedByte);
+	{
+		//PORTC = ReceivedByte;
+		Buffer_StoreElement(&Tx_Buffer, ReceivedByte);
+
+		/*/ show the byte on pin A0
+		int i, last = 0, this, delay = 1;
+		for (i = 0; i < 8; ++i) {
+			this = ((ReceivedByte >> i) & 0x01);
+			if (this == last)
+				PORTA = this - 1;
+			_delay_us(delay);
+			PORTA = 0 - this;
+			last = this;
+			_delay_us(6 * delay);
+		}
+		if (last == 0) {
+			PORTA = -1;
+			_delay_us(delay);
+		}
+		PORTA = 0;//*/
+	}
+
+	// process any special commands to the AVR
+	ProcessByte(ReceivedByte);
 }
 
 /** Reconfigures the USART to match the current serial port settings issued by the host as closely as possible. */
@@ -352,3 +541,14 @@ void ReconfigureUSART(void)
 	/* Set the USART baud rate register to the desired baud rate value */
 	UBRR1  = SERIAL_2X_UBBRVAL((uint16_t)LineEncoding.BaudRateBPS);
 }
+
+
+// Implementation for watchdog initialisation (to disable it on boot)
+void wdt_init(void)
+{
+    MCUSR = 0;
+    wdt_disable();
+
+    return;
+}
+

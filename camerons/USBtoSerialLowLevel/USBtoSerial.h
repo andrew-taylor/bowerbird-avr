@@ -177,6 +177,10 @@
 		void SetupHardware(void);
 		void CDC_Task(void);
 		void ReconfigureUSART(void);
+		void ProcessByte(uint8_t);
+		void ProcessPowerCommand(char *);
+		void ProcessLCDCommand(char *);
+		void WriteStringToUSB(char *, ...);
 	
 		void EVENT_USB_Device_Connect(void);
 		void EVENT_USB_Device_Disconnect(void);
