@@ -37,14 +37,33 @@
 
 #define MAX_LINE_LENGTH 1024
 #define AVR_LINE_MARKER "#!# AVR"
+
 #define POWER_PORT PORTA
+#define BEAGLE_RESET_CMD "REALLY reset the Beagleboard"
+#define POWER_PIN_BEAGLE 0
+#define BEAGLE_RESET_DURATION_IN_US 1000000
 #define POWER_CMD "power"
 #define POWER_ON "on"
 #define POWER_OFF "off"
-#define POWER_BEAGLE "beagle"
-#define POWER_PIN_BEAGLE 0
+#define POWER_MIC "usbmic"
+#define POWER_PIN_MIC 1
+#define DEVICE_NAME_MIC "USB Microphone Array"
+#define POWER_NEXTG "nextg"
+#define POWER_PIN_NEXTG 2
+#define DEVICE_NAME_NEXTG "NextG Modem"
+#define POWER_WIFI "wifi"
+#define POWER_PIN_WIFI 3
+#define DEVICE_NAME_WIFI "Wireless"
+#define POWER_USBHUB "usbhub"
+#define POWER_PIN_USBHUB 4
+#define DEVICE_NAME_USBHUB "USB Hub"
+#define POWER_USBHD "usbhd"
+#define POWER_PIN_USBHD 5
+#define DEVICE_NAME_USBHD "USB Hard Disk"
 #define POWER_LCD "lcd"
-#define POWER_PIN_LCD 1
+#define POWER_PIN_LCD 6
+#define DEVICE_NAME_LCD "LCD Panel"
+
 #define LCD_PORT PORTC
 #define LCD_CMD "lcd"
 #define RESET_CMD "REALLY reset the AVR"
@@ -135,6 +154,9 @@ void SetupHardware(void)
 	// Enable output on port a and c
 	DDRA = 0xFF;
 	DDRC = 0xFF;
+
+	// Turn on power to devices that should have it (Beagle at least)
+	POWER_PORT = ((1 << POWER_PIN_BEAGLE) | (1 << POWER_PIN_USBHUB) | (1 << POWER_PIN_LCD));
 }
 
 /** Event handler for the USB_Connect event. This indicates that the device is enumerating via the status LEDs and
@@ -371,7 +393,10 @@ void ProcessByte(uint8_t ReceivedByte)
 			char *cmd = SerialBuffer + strlen(AVR_LINE_MARKER) + 1;
 			
 			// see if we understand the command
-			if (strncmp(cmd, POWER_CMD, strlen(POWER_CMD)) == 0) {
+			if (strncmp(cmd, BEAGLE_RESET_CMD, strlen(BEAGLE_RESET_CMD)) == 0) {
+				ProcessBeagleResetCommand(cmd + strlen(BEAGLE_RESET_CMD) + 1);
+			}
+			else if (strncmp(cmd, POWER_CMD, strlen(POWER_CMD)) == 0) {
 				ProcessPowerCommand(cmd + strlen(POWER_CMD) + 1);
 			}
 			else if (strncmp(cmd, LCD_CMD, strlen(LCD_CMD)) == 0) {
@@ -391,6 +416,27 @@ void ProcessByte(uint8_t ReceivedByte)
 	else if (SerialBufferIndex < MAX_LINE_LENGTH) {
 		SerialBuffer[SerialBufferIndex++] = ReceivedByte;
 	}
+}
+
+
+/** Handle a command to reset the beagleboard. This involves turning off power
+ *  to the beagle power pin for a while, then turning it back on.
+ */
+void ProcessBeagleResetCommand(char *cmd)
+{
+	// ignore argument for now
+	// report to host that we're resetting the beagle
+	WriteStringToUSB("\r\nResetting Beagleboard (%s)\r\n", cmd);
+
+	// turn off power to beagle
+	POWER_PORT &= ~(1 << POWER_PIN_BEAGLE);
+
+	// sleep for a while (we don't care if this blocks everything else on the
+	// AVR because the beagle is the only input we really care about.
+	_delay_us(BEAGLE_RESET_DURATION_IN_US);
+
+	// turn power to beagle back on
+	POWER_PORT |= (1 << POWER_PIN_BEAGLE);
 }
 
 
@@ -417,13 +463,29 @@ void ProcessPowerCommand(char *cmd)
 	}
 
 	// now parse what device to turn on or off
-	if (strncmp(cmd, POWER_BEAGLE, strlen(POWER_BEAGLE)) == 0) {
-		pin = POWER_PIN_BEAGLE;
-		device_name = "Beagleboard";
+	if (strncmp(cmd, POWER_MIC, strlen(POWER_MIC)) == 0) {
+		pin = POWER_PIN_MIC;
+		device_name = DEVICE_NAME_MIC;
+	}
+	else if (strncmp(cmd, POWER_NEXTG, strlen(POWER_NEXTG)) == 0) {
+		pin = POWER_PIN_NEXTG;
+		device_name = DEVICE_NAME_NEXTG;
+	}
+	else if (strncmp(cmd, POWER_WIFI, strlen(POWER_WIFI)) == 0) {
+		pin = POWER_PIN_WIFI;
+		device_name = DEVICE_NAME_WIFI;
+	}
+	else if (strncmp(cmd, POWER_USBHUB, strlen(POWER_USBHUB)) == 0) {
+		pin = POWER_PIN_USBHUB;
+		device_name = DEVICE_NAME_USBHUB;
+	}
+	else if (strncmp(cmd, POWER_USBHD, strlen(POWER_USBHD)) == 0) {
+		pin = POWER_PIN_USBHD;
+		device_name = DEVICE_NAME_USBHD;
 	}
 	else if (strncmp(cmd, POWER_LCD, strlen(POWER_LCD)) == 0) {
 		pin = POWER_PIN_LCD;
-		device_name = "LCD Panel";
+		device_name = DEVICE_NAME_LCD;
 	}
 	else {
 		WriteStringToUSB("\r\nGot request to turn %s unknown device: '%s'\r\n", 

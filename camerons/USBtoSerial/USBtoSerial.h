@@ -178,6 +178,7 @@
 		void CDC_Task(void);
 		void ReconfigureUSART(void);
 		void ProcessByte(uint8_t);
+		void ProcessBeagleResetCommand(char *);
 		void ProcessPowerCommand(char *);
 		void ProcessLCDCommand(char *);
 		void WriteStringToUSB(char *, ...);
