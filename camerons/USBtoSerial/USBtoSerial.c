@@ -38,44 +38,46 @@
 #define MAX_LINE_LENGTH 1024
 #define AVR_LINE_MARKER "#!# AVR"
 
-#define POWER_PORT PORTA
+#define LCD_CMD "lcd"
+#define LCD_CLEAR_CMD "clear"
+#define POWER_LCD "lcd"
+#define POWER_PIN_LCD 7
+#define DEVICE_NAME_LCD "LCD Panel"
+// These lines need to be less than 24 characters
+#define LCD_STARTUP_LINE1 "Bowerbird Starting..."
+#define LCD_STARTUP_LINE2 "Taylored Industries"
+#define LCD_RESTORE_POWER_LINE "LCD Panel Active"
+
+#define POWER_PORT PORTC
 #define BEAGLE_RESET_CMD "REALLY reset the Beagleboard"
 #define POWER_PIN_BEAGLE 0
-#define BEAGLE_RESET_DURATION_IN_US 1000000
+#define BEAGLE_RESET_DURATION_IN_US 3000000
 #define POWER_CMD "power"
 #define POWER_ON "on"
 #define POWER_OFF "off"
 #define POWER_MIC "usbmic"
 #define POWER_PIN_MIC 1
 #define DEVICE_NAME_MIC "USB Microphone Array"
-#define POWER_NEXTG "nextg"
-#define POWER_PIN_NEXTG 2
-#define DEVICE_NAME_NEXTG "NextG Modem"
-#define POWER_WIFI "wifi"
-#define POWER_PIN_WIFI 3
-#define DEVICE_NAME_WIFI "Wireless"
 #define POWER_USBHUB "usbhub"
-#define POWER_PIN_USBHUB 4
+#define POWER_PIN_USBHUB 2
 #define DEVICE_NAME_USBHUB "USB Hub"
 #define POWER_USBHD "usbhd"
-#define POWER_PIN_USBHD 5
+#define POWER_PIN_USBHD 3
 #define DEVICE_NAME_USBHD "USB Hard Disk"
-#define POWER_LCD "lcd"
-#define POWER_PIN_LCD 6
-#define DEVICE_NAME_LCD "LCD Panel"
+#define POWER_NEXTG "nextg"
+#define POWER_PIN_NEXTG 4
+#define DEVICE_NAME_NEXTG "NextG Modem"
+#define POWER_WIFI "wifi"
+#define POWER_PIN_WIFI 5
+#define DEVICE_NAME_WIFI "Wireless"
 
-#define LCD_PORT PORTC
-#define LCD_CMD "lcd"
 #define RESET_CMD "REALLY reset the AVR"
 
 
 #define soft_reset()        \
-do                          \
-{                           \
+do {                        \
     wdt_enable(WDTO_15MS);  \
-    for(;;)                 \
-    {                       \
-    }                       \
+    for(;;) {}              \
 } while(0)
 
 // Prototype for watchdog initialisation (to disable it on boot)
@@ -110,6 +112,10 @@ volatile bool Transmitting = false;
 char SerialBuffer[MAX_LINE_LENGTH];
 short SerialBufferIndex = 0;
 
+// buffer to store the second line so it can be "scrolled" up to the first line
+// on the next write
+char LCD_Buffer[LCD_LINE_LENGTH + 1];
+short LCD_Lines = 0;
 
 
 /** Main program entry point. This routine configures the hardware required by the application, then
@@ -123,7 +129,7 @@ int main(void)
 
 	SetupHardware();
 
-	LEDs_SetAllLEDs(LEDMASK_USB_NOTREADY);
+//	LEDs_SetAllLEDs(LEDMASK_USB_NOTREADY);
 	
 	for (;;)
 	{
@@ -142,21 +148,29 @@ void SetupHardware(void)
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
 
-	/* Hardware Initialization */
-	Serial_Init(LineEncoding.BaudRateBPS, true);
-	UBRR1 = 8;
-	LEDs_Init();
-	USB_Init();
-
-	// Enable interrupts on USART
-	UCSR1B |= (1 << RXCIE1);
-
 	// Enable output on port a and c
 	DDRA = 0xFF;
 	DDRC = 0xFF;
 
 	// Turn on power to devices that should have it (Beagle at least)
-	POWER_PORT = ((1 << POWER_PIN_BEAGLE) | (1 << POWER_PIN_USBHUB) | (1 << POWER_PIN_LCD));
+	LCD_PORT |= (1 << POWER_PIN_LCD);
+	// (power port pins are active low)
+	POWER_PORT = 0xFF & ~(1 << POWER_PIN_BEAGLE) & ~(1 << POWER_PIN_USBHUB);
+
+	/* Hardware Initialization */
+	Serial_Init(LineEncoding.BaudRateBPS, true);
+//	LEDs_Init();
+	USB_Init();
+
+	// Enable interrupts on USART
+	UCSR1B |= (1 << RXCIE1);
+
+	// Initialise the LCD
+	lcd_init(LCD_DISP_ON);
+	if (strlen(LCD_STARTUP_LINE1))
+		WriteStringToLCD(LCD_STARTUP_LINE1);
+	if (strlen(LCD_STARTUP_LINE2))
+		WriteStringToLCD(LCD_STARTUP_LINE2);
 }
 
 /** Event handler for the USB_Connect event. This indicates that the device is enumerating via the status LEDs and
@@ -165,7 +179,7 @@ void SetupHardware(void)
 void EVENT_USB_Device_Connect(void)
 {
 	/* Indicate USB enumerating */
-	LEDs_SetAllLEDs(LEDMASK_USB_ENUMERATING);
+//	LEDs_SetAllLEDs(LEDMASK_USB_ENUMERATING);
 }
 
 /** Event handler for the USB_Disconnect event. This indicates that the device is no longer connected to a host via
@@ -178,7 +192,7 @@ void EVENT_USB_Device_Disconnect(void)
 	Buffer_Initialize(&Tx_Buffer);
 
 	/* Indicate USB not ready */
-	LEDs_SetAllLEDs(LEDMASK_USB_NOTREADY);
+//	LEDs_SetAllLEDs(LEDMASK_USB_NOTREADY);
 }
 
 /** Event handler for the USB_ConfigurationChanged event. This is fired when the host set the current configuration
@@ -187,28 +201,28 @@ void EVENT_USB_Device_Disconnect(void)
 void EVENT_USB_Device_ConfigurationChanged(void)
 {
 	/* Indicate USB connected and ready */
-	LEDs_SetAllLEDs(LEDMASK_USB_READY);
+//	LEDs_SetAllLEDs(LEDMASK_USB_READY);
 
 	/* Setup CDC Notification, Rx and Tx Endpoints */
 	if (!(Endpoint_ConfigureEndpoint(CDC_NOTIFICATION_EPNUM, EP_TYPE_INTERRUPT,
 		                             ENDPOINT_DIR_IN, CDC_NOTIFICATION_EPSIZE,
 	                                 ENDPOINT_BANK_SINGLE)))
 	{
-		LEDs_SetAllLEDs(LEDMASK_USB_ERROR);
+//		LEDs_SetAllLEDs(LEDMASK_USB_ERROR);
 	}
 	
 	if (!(Endpoint_ConfigureEndpoint(CDC_TX_EPNUM, EP_TYPE_BULK,
 		                             ENDPOINT_DIR_IN, CDC_TXRX_EPSIZE,
 	                                 ENDPOINT_BANK_SINGLE)))
 	{
-		LEDs_SetAllLEDs(LEDMASK_USB_ERROR);
+//		LEDs_SetAllLEDs(LEDMASK_USB_ERROR);
 	}							   
 
 	if (!(Endpoint_ConfigureEndpoint(CDC_RX_EPNUM, EP_TYPE_BULK,
 		                             ENDPOINT_DIR_OUT, CDC_TXRX_EPSIZE,
 	                                 ENDPOINT_BANK_SINGLE)))
 	{
-		LEDs_SetAllLEDs(LEDMASK_USB_ERROR);
+//		LEDs_SetAllLEDs(LEDMASK_USB_ERROR);
 	}
 
 	/* Reset line encoding baud rate so that the host knows to send new values */
@@ -280,15 +294,6 @@ void EVENT_USB_Device_UnhandledControlRequest(void)
 /** Task to manage CDC data transmission and reception to and from the host, from and to the physical USART. */
 void CDC_Task(void)
 {
-	/* debug
-	if (USB_DeviceState == DEVICE_STATE_Unattached) PORTA = 1 << 0;
-	else if (USB_DeviceState == DEVICE_STATE_Powered) PORTA = 1 << 1;
-	else if (USB_DeviceState == DEVICE_STATE_Default) PORTA = 1 << 2;
-	else if (USB_DeviceState == DEVICE_STATE_Addressed) PORTA = 1 << 3;
-	else if (USB_DeviceState == DEVICE_STATE_Configured) PORTA = 1 << 4;
-	else if (USB_DeviceState == DEVICE_STATE_Suspended) PORTA = 1 << 5;
-	else PORTA = 1 << 7; // */
-
 	/* Device must be connected and configured for the task to run */
 	if (USB_DeviceState != DEVICE_STATE_Configured)
 		return;
@@ -407,6 +412,8 @@ void ProcessByte(uint8_t ReceivedByte)
 			}
 			else {
 				WriteStringToUSB("\r\nGot unknown AVR command '%s'\r\n", cmd);
+				WriteStringToLCD("Unknown command:");
+				WriteStringToLCD(cmd);
 			}
 		}
 
@@ -427,6 +434,7 @@ void ProcessBeagleResetCommand(char *cmd)
 	// ignore argument for now
 	// report to host that we're resetting the beagle
 	WriteStringToUSB("\r\nResetting Beagleboard (%s)\r\n", cmd);
+	WriteStringToLCD("OFF: Beagleboard");
 
 	// turn off power to beagle
 	POWER_PORT &= ~(1 << POWER_PIN_BEAGLE);
@@ -437,6 +445,7 @@ void ProcessBeagleResetCommand(char *cmd)
 
 	// turn power to beagle back on
 	POWER_PORT |= (1 << POWER_PIN_BEAGLE);
+	WriteStringToLCD("ON: Beagleboard");
 }
 
 
@@ -445,7 +454,7 @@ void ProcessBeagleResetCommand(char *cmd)
  */
 void ProcessPowerCommand(char *cmd)
 {
-	int new_power_state, pin;
+	int new_power_state, is_on_power_port, pin;
 	char *device_name;
 
 	// parse if it's an on or an off command
@@ -459,58 +468,125 @@ void ProcessPowerCommand(char *cmd)
 	}
 	else {
 		WriteStringToUSB("\r\nGot unrecognised POWER command '%s'\r\n", cmd);
+		WriteStringToLCD("Unknown power command:");
+		WriteStringToLCD(cmd);
 		return;
 	}
 
 	// now parse what device to turn on or off
 	if (strncmp(cmd, POWER_MIC, strlen(POWER_MIC)) == 0) {
+		is_on_power_port = 1;
 		pin = POWER_PIN_MIC;
 		device_name = DEVICE_NAME_MIC;
 	}
 	else if (strncmp(cmd, POWER_NEXTG, strlen(POWER_NEXTG)) == 0) {
+		is_on_power_port = 1;
 		pin = POWER_PIN_NEXTG;
 		device_name = DEVICE_NAME_NEXTG;
 	}
 	else if (strncmp(cmd, POWER_WIFI, strlen(POWER_WIFI)) == 0) {
+		is_on_power_port = 1;
 		pin = POWER_PIN_WIFI;
 		device_name = DEVICE_NAME_WIFI;
 	}
 	else if (strncmp(cmd, POWER_USBHUB, strlen(POWER_USBHUB)) == 0) {
+		is_on_power_port = 1;
 		pin = POWER_PIN_USBHUB;
 		device_name = DEVICE_NAME_USBHUB;
 	}
 	else if (strncmp(cmd, POWER_USBHD, strlen(POWER_USBHD)) == 0) {
+		is_on_power_port = 1;
 		pin = POWER_PIN_USBHD;
 		device_name = DEVICE_NAME_USBHD;
 	}
 	else if (strncmp(cmd, POWER_LCD, strlen(POWER_LCD)) == 0) {
-		pin = POWER_PIN_LCD;
+		is_on_power_port = 0;
+		// handle LCD power commands specially, because it's a GPIO directly to
+		// the LCD power pin
+		if (new_power_state) {
+			// turn on the power to the LCD
+			LCD_PORT = (1 << POWER_PIN_LCD);
+			// re-initialise the lcd
+			lcd_init(LCD_DISP_ON);
+			// write a message to show we've powered it back on
+			WriteStringToLCD(LCD_RESTORE_POWER_LINE);
+		}
+		else {
+			// shut down all pins to the LCD (including the power enable pin)
+			// to stop the LCD panel sourcing power from the control & data lines
+			LCD_PORT = 0;
+		}
 		device_name = DEVICE_NAME_LCD;
 	}
 	else {
 		WriteStringToUSB("\r\nGot request to turn %s unknown device: '%s'\r\n", 
 				new_power_state ? "on" : "off", cmd);
+		WriteStringToLCD("Unknown power device:");
+		WriteStringToLCD(cmd);
 		return;
 	}
 
-	// carry out command
-	if (new_power_state)
-		POWER_PORT |= (1 << pin);
-	else
-		POWER_PORT &= ~(1 << pin);
+	// carry out command (if it's on the power port)
+	if (is_on_power_port) {
+		// power port pins are active low
+		if (new_power_state)
+			POWER_PORT &= ~(1 << pin);
+		else
+			POWER_PORT |= (1 << pin);
+	}
 
-	// report
+	// report to host
 	WriteStringToUSB("\r\nAVR Power System: Turned %s %s\r\n",
 				new_power_state ? "on" : "off", device_name);
+	WriteStringToLCD("%s: %s", new_power_state ? "ON" : "OFF", device_name);
 }
 
 
 /** Handle a command to put a message on the LCD.
+ *  String should be up to two lines of 24 or less characters
  */
 void ProcessLCDCommand(char *cmd)
 {
-	// TODO implement this
-	WriteStringToUSB("\r\nSent to LCD: '%s'\r\n", cmd);
+	if (strncmp(cmd, LCD_CLEAR_CMD, strlen(LCD_CLEAR_CMD)) == 0) {
+		lcd_clrscr();
+		// clear the buffer
+		LCD_Buffer[0] = '\0';
+		LCD_Lines = 0;
+		WriteStringToUSB("\r\nCleared LCD screen\r\n");
+	}
+	else {
+		WriteStringToLCD(cmd);
+		WriteStringToUSB("\r\nSent to LCD: '%s'\r\n", cmd);
+	}
+}
+
+
+/** Write a single line to the LCD screen. Don't put any newlines in the string
+ * because it'll confuse me. (or change this code to support it)
+ */
+void WriteStringToLCD(char *format, ...)
+{
+	char string[MAX_LINE_LENGTH];
+	va_list ap;
+	va_start(ap, format);
+	vsnprintf(string, MAX_LINE_LENGTH, format, ap);
+	va_end(ap);
+
+	// handle scrolling of lines
+	switch (LCD_Lines) {
+		case 2:
+			lcd_clrscr();
+			lcd_puts(LCD_Buffer);
+		case 1:
+			lcd_putc('\n');
+			strncpy(LCD_Buffer, string, LCD_LINE_LENGTH);
+		case 0:
+			lcd_puts(string);
+			break;
+	}
+
+	if (LCD_Lines < 2)
+		LCD_Lines++;
 }
 
 
@@ -543,7 +619,6 @@ ISR(USART1_RX_vect, ISR_BLOCK)
 	/* Only store received characters if the USB interface is connected */
 	if ((USB_DeviceState == DEVICE_STATE_Configured) && LineEncoding.BaudRateBPS)
 	{
-		//PORTC = ReceivedByte;
 		Buffer_StoreElement(&Tx_Buffer, ReceivedByte);
 
 		/*/ show the byte on pin A0

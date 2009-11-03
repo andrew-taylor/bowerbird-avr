@@ -80,7 +80,7 @@ BOARD  =
 #     does not *change* the processor frequency - it should merely be updated to
 #     reflect the processor speed set externally so that the code can use accurate
 #     software delays.
-F_CPU = 8000000
+F_CPU = 16000000
 
 
 # Input clock frequency.
@@ -128,6 +128,7 @@ LUFA_OPTS += -D USE_STATIC_OPTIONS="(USB_DEVICE_OPT_FULLSPEED | USB_OPT_REG_ENAB
 SRC = $(TARGET).c                                                 \
 	  Descriptors.c                                               \
 	  Lib/RingBuff.c                                              \
+	  Lib/lcd.c                                                   \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/DevChapter9.c        \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/Endpoint.c           \
 	  $(LUFA_PATH)/LUFA/Drivers/USB/LowLevel/Host.c               \

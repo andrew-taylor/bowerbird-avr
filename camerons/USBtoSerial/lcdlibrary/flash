@@ -1,0 +1,26 @@
+#!/bin/sh
+
+PROGRAMMER=/usr/bin/dfu-programmer
+#CHIP=at90usb647
+CHIP=at90usb1287
+HEX=test_lcd.hex
+
+if [ ! -x $PROGRAMMER ]
+then
+	echo Error: $PROGRAMMER not found. Please install.
+	exit 1
+fi
+
+if [ `id -u` -ne 0 ]
+then
+	echo "Root privileges are needed to program board."
+	PROGRAMMER="sudo $PROGRAMMER"
+fi
+
+while ! $PROGRAMMER $CHIP erase
+do
+	echo Please reboot board into program mode, then press Enter.
+	read dummy
+done
+$PROGRAMMER $CHIP flash $HEX
+$PROGRAMMER $CHIP start
