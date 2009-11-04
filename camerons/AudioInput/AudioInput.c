@@ -55,7 +55,7 @@
 /* digital pot values used to calculate gains */
 #define DIGITAL_POT_RESISTANCE_BASE 75
 #define DIGITAL_POT_RESISTANCE_MAX 100000
-#define PREAMP_INPUT_RESISTANCE 1000
+#define PREAMP_INPUT_RESISTANCE 560
 #define PREAMP_MINIMUM_SETPOINT ((uint8_t)3)
 //FIXME should be calculated but this calc doesn't work
 // #define PREAMP_MINIMUM_SETPOINT ((PREAMP_INPUT_RESISTANCE - DIGITAL_POT_RESISTANCE_BASE) * 0xFF / DIGITAL_POT_RESISTANCE_MAX))
@@ -407,7 +407,6 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 	if (bmRequestType & AUDIO_REQ_TYPE_GET_MASK) {
 		switch (bRequest) {
 			case AUDIO_REQ_GET_Cur:
-				// FIXME this will be unneccessary once the preamp code actually works
 				if (PreAmps_get(microphone_index, &buf)) {
 					// use approximate half-max as fall-back if error occurs
 					buf = 0x1f;
@@ -435,7 +434,7 @@ void ProcessVolumeRequest(uint8_t bRequest, uint8_t bmRequestType,
 	}
 	else {
 		if (bRequest == AUDIO_REQ_SET_Cur) {
-			/* A request for the current setting of a particular channel's input gain. */
+			/* A request to set a particular channel's input gain. */
 			Endpoint_ClearSetupReceived();
 			Endpoint_Read_Control_Stream(&value, sizeof(value));
 			Endpoint_ClearSetupIN();
@@ -497,7 +496,7 @@ void ProcessSamplingFrequencyRequest(uint8_t bRequest, uint8_t bmRequestType)
 	}
 	else {
 		if (bRequest == AUDIO_REQ_SET_Cur) {
-			/* A request for the current setting of a particular channel's input gain. */
+			/* A request to set the sampling frequency */
 			Endpoint_ClearSetupReceived();
 			Endpoint_Read_Control_Stream(freq_byte, 3);
 			Endpoint_ClearSetupIN();
@@ -629,9 +628,11 @@ uint8_t Volumes_Init(void)
 static inline int16_t ConvertByteToVolume(uint8_t byte)
 {
 	// convert byte setting for the digital pot into resistor value
-	double feedback_resistance = DIGITAL_POT_RESISTANCE_BASE + byte * (DIGITAL_POT_RESISTANCE_MAX - DIGITAL_POT_RESISTANCE_BASE) / 0xff;
-	// convert feedback resistor value into a voltage gain
-	double voltage_gain = feedback_resistance / PREAMP_INPUT_RESISTANCE;
+	double feedback_resistance = DIGITAL_POT_RESISTANCE_BASE + byte 
+			* (DIGITAL_POT_RESISTANCE_MAX - DIGITAL_POT_RESISTANCE_BASE) / 0xff;
+	// convert feedback resistor value into a voltage gain 
+	// (positive gain amplifier)
+	double voltage_gain = (feedback_resistance / PREAMP_INPUT_RESISTANCE) + 1;
 	// convert voltage gain into a db (logarithmic) gain
 	return 20 * log10(voltage_gain);
 }
