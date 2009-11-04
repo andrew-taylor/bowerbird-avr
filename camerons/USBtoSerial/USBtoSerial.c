@@ -153,7 +153,8 @@ void SetupHardware(void)
 	PORTE = 0xFF;
 	PORTF = 0xFF;
 
-	// Enable pull-ups on unused pins of PORTD (Pins 3 & 4 are used)
+	// Enable pull-ups on unused pins of PORTD
+	// (Pins 3 & 4 are used by serial port (counting from 1))
 	PORTD = 0xF3;
 
 	// Enable output on port a and c
