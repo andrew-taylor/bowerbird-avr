@@ -345,119 +345,119 @@ USB_Descriptor_String_t SerialNumberString PROGMEM = {
 		Size: USB_STRING_LEN(2),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"42"
+	UnicodeString: L"43"
 };
 
 USB_Descriptor_String_t InputTerminalString1_1 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(5),
+		Size: USB_STRING_LEN(6),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 1"
+	UnicodeString: L"Mic 1a"
 };
 
 USB_Descriptor_String_t InputTerminalString1_3 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(5),
+		Size: USB_STRING_LEN(6),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 3"
+	UnicodeString: L"Mic 2a"
 };
 
 USB_Descriptor_String_t InputTerminalString1_5 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(5),
+		Size: USB_STRING_LEN(6),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 5"
+	UnicodeString: L"Mic 3a"
 };
 
 USB_Descriptor_String_t InputTerminalString1_7 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(5),
+		Size: USB_STRING_LEN(6),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 7"
+	UnicodeString: L"Mic 4a"
 };
 
 USB_Descriptor_String_t InputTerminalString2_13 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(7),
+		Size: USB_STRING_LEN(9),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 1+3"
+	UnicodeString: L"Mic 1a+2a"
 };
 
 USB_Descriptor_String_t InputTerminalString2_35 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(7),
+		Size: USB_STRING_LEN(9),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 3+5"
+	UnicodeString: L"Mic 2a+3a"
 };
 
 USB_Descriptor_String_t InputTerminalString2_57 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(7),
+		Size: USB_STRING_LEN(9),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 5+7"
+	UnicodeString: L"Mic 3a+4a"
 };
 
 USB_Descriptor_String_t InputTerminalString2_71 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(7),
+		Size: USB_STRING_LEN(9),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 7+1"
+	UnicodeString: L"Mic 4a+1a"
 };
 
 USB_Descriptor_String_t InputTerminalString4_1357 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(11),
+		Size: USB_STRING_LEN(15),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 1+3+5+7"
+	UnicodeString: L"Mic 1a+2a+3a+4a"
 };
 
 USB_Descriptor_String_t InputTerminalString4_1234 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(11),
+		Size: USB_STRING_LEN(15),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 1+2+3+4"
+	UnicodeString: L"Mic 1a+1b+2a+2b"
 };
 
 USB_Descriptor_String_t InputTerminalString4_3456 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(11),
+		Size: USB_STRING_LEN(15),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 3+4+5+6"
+	UnicodeString: L"Mic 2a+2b+3a+3b"
 };
 
 USB_Descriptor_String_t InputTerminalString4_5678 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(11),
+		Size: USB_STRING_LEN(15),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 5+6+7+8"
+	UnicodeString: L"Mic 3a+3b+4a+4b"
 };
 
 USB_Descriptor_String_t InputTerminalString4_7812 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(11),
+		Size: USB_STRING_LEN(15),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 7+8+1+2"
+	UnicodeString: L"Mic 4a+4b+1a+1b"
 };
 
 USB_Descriptor_String_t InputTerminalString8 PROGMEM = {
 	Header: {
-		Size: USB_STRING_LEN(7),
+		Size: USB_STRING_LEN(9),
 		Type: DTYPE_String
 	},
-	UnicodeString: L"Mic 1-8"
+	UnicodeString: L"Mic 1a-4b"
 };
 
 USB_Descriptor_String_t SelectorUnitString1 PROGMEM = {
