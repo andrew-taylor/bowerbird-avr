@@ -148,6 +148,14 @@ void SetupHardware(void)
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
 
+	// enable pull-ups on all unused ports to reduce power consumption
+	PORTB = 0xFF;
+	PORTE = 0xFF;
+	PORTF = 0xFF;
+
+	// Enable pull-ups on unused pins of PORTD (Pins 3 & 4 are used)
+	PORTD = 0xF3;
+
 	// Enable output on port a and c
 	DDRA = 0xFF;
 	DDRC = 0xFF;
