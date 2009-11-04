@@ -125,13 +125,22 @@ int main(void)
 	MCUSR &= ~(1 << WDRF);
 	wdt_disable();
 
-	// FIXME hack enable port a & c for debugging
-	DDRA = 0xFF;
-	DDRC = 0xFF;
-	
 	/* Disable Clock Division */
 	clock_prescale_set(clock_div_1);
 
+	// Enable pull-ups on unused ports to reduce power consumption
+	PORTA = 0xFF;
+	PORTC = 0xFF;
+	PORTE = 0xFF;
+	PORTF = 0xFF;
+
+	// Enable pull-ups on unused pins of PORTB
+	// (Pins 1,2,3 & 4 are used by SPI (counting from 1))
+	PORTB = 0xF0;
+	// Enable pull-ups on unused pins of PORTD 
+	// (Pins 1,2 & 8 are used by I2C (TWI) (counting from 1))
+	PORTD = 0x7C;
+	
 	/* these will be updated when a recording is started */
 	num_audio_channels = 0;
 	multichannel = 0;
@@ -647,8 +656,14 @@ static inline void SendNAK(void)
 }
 
 
+/** This puts the given 16bit value on ports a(msb) and c(lsb)
+ */
 static inline void ShowVal(uint16_t val)
 {
+	// enable port a & c for debugging
+	DDRA = 0xFF;
+	DDRC = 0xFF;
+	
 	PORTA = ((val >> 8) & 0xFF);
 	PORTC = (val & 0xFF);
 }
