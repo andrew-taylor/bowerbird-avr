@@ -623,7 +623,7 @@ uint8_t Volumes_Init(void)
 
 
 // Digital pots (feedback resistance) range between ~0 and 100k with 256 values
-// Input resistor is 1k, and voltage gain is input/feedback
+// Input resistor is 560, and voltage gain is ((input/feedback) + 1)
 // db gain (volume) is 20 log10(voltage gain)
 static inline int16_t ConvertByteToVolume(uint8_t byte)
 {
@@ -631,7 +631,6 @@ static inline int16_t ConvertByteToVolume(uint8_t byte)
 	double feedback_resistance = DIGITAL_POT_RESISTANCE_BASE + byte 
 			* (DIGITAL_POT_RESISTANCE_MAX - DIGITAL_POT_RESISTANCE_BASE) / 0xff;
 	// convert feedback resistor value into a voltage gain 
-	// (positive gain amplifier)
 	double voltage_gain = (feedback_resistance / PREAMP_INPUT_RESISTANCE) + 1;
 	// convert voltage gain into a db (logarithmic) gain
 	return 20 * log10(voltage_gain);
@@ -643,7 +642,7 @@ static inline uint8_t ConvertVolumeToByte(int16_t volume)
 	// convert db (logarithmic) gain into a voltage gain;
 	double voltage_gain = pow(10, volume / 20.0);
 	// convert the voltage gain into a feedback resistance value
-	double feedback_resistance = voltage_gain * PREAMP_INPUT_RESISTANCE;
+	double feedback_resistance = (voltage_gain - 1) * PREAMP_INPUT_RESISTANCE;
 	// convert feedback resistance into a byte setting for the digital pot
 	double pot_setting = (feedback_resistance - DIGITAL_POT_RESISTANCE_BASE) * 0xff / (DIGITAL_POT_RESISTANCE_MAX - DIGITAL_POT_RESISTANCE_BASE);
 	// limit value for digital pot
