@@ -73,6 +73,11 @@
 
 #define RESET_CMD "REALLY reset the AVR"
 
+#define BEAGLE_MSG_LOGIN "Ubuntu 9.04 beagleboard ttyS2"
+#define LCD_MSG_LOGIN "Beagle Ready for login"
+#define BEAGLE_MSG_HALTED "System Halted."
+#define LCD_MSG_HALTED "Beagle Halted"
+
 
 #define soft_reset()        \
 do {                        \
@@ -164,7 +169,14 @@ void SetupHardware(void)
 	// Turn on power to devices that should have it (Beagle at least)
 	LCD_PORT |= (1 << POWER_PIN_LCD);
 	// (power port pins are active low)
-	POWER_PORT = 0xFF & ~(1 << POWER_PIN_BEAGLE) & ~(1 << POWER_PIN_USBHUB);
+	// FIXME temporarily turn everything on
+	POWER_PORT = 0xFF 
+		& ~(1 << POWER_PIN_BEAGLE) 
+		& ~(1 << POWER_PIN_MIC) 
+		& ~(1 << POWER_PIN_USBHUB) 
+		& ~(1 << POWER_PIN_USBHD)
+		& ~(1 << POWER_PIN_NEXTG) 
+		& ~(1 << POWER_PIN_WIFI); 
 
 	/* Hardware Initialization */
 	Serial_Init(LineEncoding.BaudRateBPS, true);
@@ -425,6 +437,12 @@ void ProcessByte(uint8_t ReceivedByte)
 				WriteStringToLCD(cmd);
 			}
 		}
+		else {
+			EchoSpecialLinesToLCD(SerialBuffer);
+		}
+
+		// reset the watchdog
+		// FIXME do this
 
 		// clear the buffer
 		SerialBufferIndex = 0;
@@ -567,6 +585,18 @@ void ProcessLCDCommand(char *cmd)
 		WriteStringToLCD(cmd);
 		WriteStringToUSB("\r\nSent to LCD: '%s'\r\n", cmd);
 	}
+}
+
+
+/** Check current line to see if it's worth echoing to the LCD
+ * (e.g. system halted)
+ */
+void EchoSpecialLinesToLCD(char *line)
+{
+	if (strncmp(line, BEAGLE_MSG_LOGIN, MAX_LINE_LENGTH) == 0)
+		WriteStringToLCD(LCD_MSG_LOGIN);
+	else if (strncmp(line + 15, BEAGLE_MSG_HALTED, MAX_LINE_LENGTH) == 0)
+		WriteStringToLCD(LCD_MSG_HALTED);
 }
 
 

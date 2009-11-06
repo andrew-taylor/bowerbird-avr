@@ -182,6 +182,7 @@
 		void ProcessBeagleResetCommand(char *);
 		void ProcessPowerCommand(char *);
 		void ProcessLCDCommand(char *);
+		void EchoSpecialLinesToLCD(char *line);
 		void WriteStringToLCD(char *, ...);
 		void WriteStringToUSB(char *, ...);
 	
