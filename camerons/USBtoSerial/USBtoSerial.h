@@ -177,11 +177,16 @@
 	/* Function Prototypes: */
 		void SetupHardware(void);
 		void CDC_Task(void);
-		void ReconfigureUSART(void);
+		void InitialiseTimers(void);
+		void StartBeagleWatchdog(void);
+		void StopBeagleWatchdog(void);
 		void ProcessByte(uint8_t);
 		void ProcessBeagleResetCommand(char *);
 		void ProcessPowerCommand(char *);
 		void ProcessLCDCommand(char *);
+		void ProcessWatchdogCommand(char *);
+		void PowerOn(int, int);
+		void SetDelayedBeagleWakeup(int);
 		void EchoSpecialLinesToLCD(char *line);
 		void WriteStringToLCD(char *, ...);
 		void WriteStringToUSB(char *, ...);
@@ -190,5 +195,6 @@
 		void EVENT_USB_Device_Disconnect(void);
 		void EVENT_USB_Device_ConfigurationChanged(void);
 		void EVENT_USB_Device_UnhandledControlRequest(void);
+		void ReconfigureUSART(void);
 
 #endif

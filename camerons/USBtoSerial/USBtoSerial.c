@@ -34,9 +34,17 @@
 #include <string.h>
 #include <avr/wdt.h>
 
+// defining this prevents the watchdog from actually resetting the beagle
+#define WATCHDOG_DRY_RUN
 
 #define MAX_LINE_LENGTH 1024
 #define AVR_LINE_MARKER "#!# AVR"
+
+#define WATCHDOG_CMD "watchdog"
+#define WATCHDOG_ENABLE "enable"
+#define WATCHDOG_DISABLE "disable"
+#define WATCHDOG_TIMEOUT_S 600
+#define WATCHDOG_PRESCALER 1024
 
 #define LCD_CMD "lcd"
 #define LCD_CLEAR_CMD "clear"
@@ -51,7 +59,7 @@
 #define POWER_PORT PORTC
 #define BEAGLE_RESET_CMD "REALLY reset the Beagleboard"
 #define POWER_PIN_BEAGLE 0
-#define BEAGLE_RESET_DURATION_IN_US 3000000
+#define BEAGLE_RESET_DURATION_IN_S 10
 #define POWER_CMD "power"
 #define POWER_ON "on"
 #define POWER_OFF "off"
@@ -122,6 +130,12 @@ short SerialBufferIndex = 0;
 char LCD_Buffer[LCD_LINE_LENGTH + 1];
 short LCD_Lines = 0;
 
+// counter to store how many seconds since we last heard from the beagle
+int Beagle_Watchdog_Counter;
+
+// counter for delayed beagle restarting
+int Beagle_Restart_Countdown;
+
 
 /** Main program entry point. This routine configures the hardware required by the application, then
  *  starts the scheduler to run the application tasks.
@@ -168,15 +182,11 @@ void SetupHardware(void)
 
 	// Turn on power to devices that should have it (Beagle at least)
 	LCD_PORT |= (1 << POWER_PIN_LCD);
+	// Turn everything off
 	// (power port pins are active low)
-	// FIXME temporarily turn everything on
-	POWER_PORT = 0xFF 
-		& ~(1 << POWER_PIN_BEAGLE) 
-		& ~(1 << POWER_PIN_MIC) 
-		& ~(1 << POWER_PIN_USBHUB) 
-		& ~(1 << POWER_PIN_USBHD)
-		& ~(1 << POWER_PIN_NEXTG) 
-		& ~(1 << POWER_PIN_WIFI); 
+	POWER_PORT = 0xFF;
+	PowerOn(POWER_PIN_BEAGLE, 1);
+	PowerOn(POWER_PIN_USBHUB, 1);
 
 	/* Hardware Initialization */
 	Serial_Init(LineEncoding.BaudRateBPS, true);
@@ -192,7 +202,12 @@ void SetupHardware(void)
 		WriteStringToLCD(LCD_STARTUP_LINE1);
 	if (strlen(LCD_STARTUP_LINE2))
 		WriteStringToLCD(LCD_STARTUP_LINE2);
+
+	// set up beagle watchdog and restart timer
+	InitialiseTimers();
+	StartBeagleWatchdog();
 }
+
 
 /** Event handler for the USB_Connect event. This indicates that the device is enumerating via the status LEDs and
  *  starts the library USB task to begin the enumeration and USB management process.
@@ -405,6 +420,49 @@ void CDC_Task(void)
 }
 
 
+/** Setup the watchdog timer */
+void InitialiseTimers()
+{
+	// save the status register
+	unsigned char ucSREG = SREG;
+
+	// disable interrupts to prevent race conditions with 16bit registers
+	cli();
+
+	// Maximum timer tick is around 4 seconds, so we'll set the timer
+	// to go off once a second, and use a counter.
+	// 1 = prescaler * (1 + OCR1A) / F_CPU
+	// So OCR1A = (F_CPU / prescaler) - 1
+	// NOTE: ensure this value fits into 16bits - change prescaler if necessary
+	OCR1A = (uint16_t)(F_CPU / WATCHDOG_PRESCALER - 1);
+	OCR3A = (uint16_t)(F_CPU / WATCHDOG_PRESCALER - 1);
+
+	// restore status register (will re-enable interrupts if the were enabled)
+	SREG = ucSREG;
+}
+
+
+/** Start the watchdog timer */
+void StartBeagleWatchdog()
+{
+	Beagle_Watchdog_Counter = 0;
+	WriteStringToLCD("Watchdog enabled");
+	
+	TCCR1B  = (1 << WGM12)  // Clear-timer-on-compare-match-OCR1A (CTC) mode
+			| (1 << CS12) | (1 << CS10);  // prescaler divides by 1024
+	TIMSK1 |= (1 << OCIE1A); // Enable timer interrupt
+}
+
+
+/** Start the watchdog timer */
+void StopBeagleWatchdog()
+{
+	WriteStringToLCD("Watchdog disabled");
+	TIMSK1 &= ~(1 << OCIE1A); // Disable timer interrupt
+	TCCR1B &= ~(1 << CS10) & ~(1 << CS11) & ~(1 << CS12); // disable clock
+}
+
+
 /** Process bytes received on the serial port to see if there's any commands to
  *  the AVR itself
  */
@@ -428,6 +486,9 @@ void ProcessByte(uint8_t ReceivedByte)
 			else if (strncmp(cmd, LCD_CMD, strlen(LCD_CMD)) == 0) {
 				ProcessLCDCommand(cmd + strlen(LCD_CMD) + 1);
 			}
+			else if (strncmp(cmd, WATCHDOG_CMD, strlen(WATCHDOG_CMD)) == 0) {
+				ProcessWatchdogCommand(cmd + strlen(WATCHDOG_CMD) + 1);
+			}
 			else if (strncmp(cmd, RESET_CMD, strlen(RESET_CMD)) == 0) {
 				soft_reset();
 			}
@@ -442,7 +503,7 @@ void ProcessByte(uint8_t ReceivedByte)
 		}
 
 		// reset the watchdog
-		// FIXME do this
+		Beagle_Watchdog_Counter = 0;
 
 		// clear the buffer
 		SerialBufferIndex = 0;
@@ -462,17 +523,10 @@ void ProcessBeagleResetCommand(char *cmd)
 	// report to host that we're resetting the beagle
 	WriteStringToUSB("\r\nResetting Beagleboard (%s)\r\n", cmd);
 	WriteStringToLCD("OFF: Beagleboard");
-
 	// turn off power to beagle
-	POWER_PORT &= ~(1 << POWER_PIN_BEAGLE);
+	PowerOn(POWER_PIN_BEAGLE, 0);
 
-	// sleep for a while (we don't care if this blocks everything else on the
-	// AVR because the beagle is the only input we really care about.
-	_delay_us(BEAGLE_RESET_DURATION_IN_US);
-
-	// turn power to beagle back on
-	POWER_PORT |= (1 << POWER_PIN_BEAGLE);
-	WriteStringToLCD("ON: Beagleboard");
+	SetDelayedBeagleWakeup(BEAGLE_RESET_DURATION_IN_S);
 }
 
 
@@ -555,11 +609,7 @@ void ProcessPowerCommand(char *cmd)
 
 	// carry out command (if it's on the power port)
 	if (is_on_power_port) {
-		// power port pins are active low
-		if (new_power_state)
-			POWER_PORT &= ~(1 << pin);
-		else
-			POWER_PORT |= (1 << pin);
+		PowerOn(pin, new_power_state);
 	}
 
 	// report to host
@@ -585,6 +635,51 @@ void ProcessLCDCommand(char *cmd)
 		WriteStringToLCD(cmd);
 		WriteStringToUSB("\r\nSent to LCD: '%s'\r\n", cmd);
 	}
+}
+
+
+/** Turn the beagle watchdog on or off */
+void ProcessWatchdogCommand(char *cmd)
+{
+	// parse if it's an enable or disable command
+	if (strncmp(cmd, WATCHDOG_ENABLE, strlen(WATCHDOG_ENABLE)) == 0) {
+		StartBeagleWatchdog();
+	}
+	else if (strncmp(cmd, WATCHDOG_DISABLE, strlen(WATCHDOG_DISABLE)) == 0) {
+		StopBeagleWatchdog();
+	}
+	else {
+		WriteStringToUSB("\r\nGot unrecognised WATCHDOG command '%s'\r\n", cmd);
+		WriteStringToLCD("Unknown watchdog command:");
+		WriteStringToLCD(cmd);
+	}
+}
+
+
+/** Turn on or off power to the given pin.
+ * Abstracted to prevent mistakes with active low connection.
+ */
+void PowerOn(int pin, int on)
+{
+	if (on)
+		POWER_PORT &= ~(1 << pin);
+	else
+		POWER_PORT |= (1 << pin);
+}
+
+
+/** Set timer3 to go off after the given number of seconds and wake the
+ * beagleboard up again.
+ */
+void SetDelayedBeagleWakeup(int seconds)
+{
+	// set the countdown
+	Beagle_Restart_Countdown = seconds;
+
+	// start the timer
+	TCCR3B  = (1 << WGM32)  // Clear-timer-on-compare-match-OCR3A (CTC) mode
+			| (1 << CS32) | (1 << CS30);  // prescaler divides by 1024
+	TIMSK3 |= (1 << OCIE3A); // Enable timer interrupt
 }
 
 
@@ -648,6 +743,41 @@ void WriteStringToUSB(char *format, ...)
 }
 
 
+/** ISR to handle when the beagle watchdog timer goes off. This means that we
+ * haven't heard from the beagle in too long, so we're going to reset it.
+ */
+ISR(TIMER1_COMPA_vect, ISR_BLOCK)
+{
+	if (++Beagle_Watchdog_Counter > WATCHDOG_TIMEOUT_S) {
+#ifdef WATCHDOG_DRY_RUN
+		ProcessLCDCommand("Watchdog timer went off");
+#else
+		ProcessBeagleResetCommand("Watchdog timer went off");
+#endif
+		Beagle_Watchdog_Counter = 0;
+	}
+}
+
+
+/** ISR to handle when the delayed beagle restart timer goes off. This basically
+ * requires us to decrement the counter, and when it gets to zero to turn the
+ * beagle on, and disable the timer
+ */
+ISR(TIMER3_COMPA_vect, ISR_BLOCK)
+{
+	if (--Beagle_Restart_Countdown <= 0) {
+		// disable the timer
+		TIMSK3 &= ~(1 << OCIE3A); // Disable timer interrupt
+		TCCR3B &= ~(1 << CS30) & ~(1 << CS31) & ~(1 << CS32); // disable clock
+
+		// turn power to beagle back on
+		PowerOn(POWER_PIN_BEAGLE, 1);
+		WriteStringToLCD("ON: Beagleboard");
+		WriteStringToUSB("\r\nBeagleboard being turned on again.\r\n");
+	}
+}
+
+
 /** ISR to handle the USART receive complete interrupt, fired each time the USART has received a character. This stores the received
  *  character into the Tx_Buffer circular buffer for later transmission to the host.
  */
@@ -656,26 +786,8 @@ ISR(USART1_RX_vect, ISR_BLOCK)
 	uint8_t ReceivedByte = UDR1;
 
 	/* Only store received characters if the USB interface is connected */
-	if ((USB_DeviceState == DEVICE_STATE_Configured) && LineEncoding.BaudRateBPS)
-	{
+	if ((USB_DeviceState == DEVICE_STATE_Configured) && LineEncoding.BaudRateBPS) {
 		Buffer_StoreElement(&Tx_Buffer, ReceivedByte);
-
-		/*/ show the byte on pin A0
-		int i, last = 0, this, delay = 1;
-		for (i = 0; i < 8; ++i) {
-			this = ((ReceivedByte >> i) & 0x01);
-			if (this == last)
-				PORTA = this - 1;
-			_delay_us(delay);
-			PORTA = 0 - this;
-			last = this;
-			_delay_us(6 * delay);
-		}
-		if (last == 0) {
-			PORTA = -1;
-			_delay_us(delay);
-		}
-		PORTA = 0;//*/
 	}
 
 	// process any special commands to the AVR
