@@ -163,11 +163,6 @@ int main(void)
 /** Configures the board hardware and chip peripherals for the demo's functionality. */
 void SetupHardware(void)
 {
-	// save the status register
-	unsigned char ucSREG = SREG;
-	// disable interrupts
-	cli();
-
 	// if we had an internal watchdog reset, then clear the flag and add it to
 	// our count in non-volatile memory
 	if (MCUSR & (1 << WDRF)) {
@@ -224,9 +219,6 @@ void SetupHardware(void)
 	// set up beagle watchdog and restart timer
 	InitialiseTimers();
 	StartBeagleWatchdog();
-
-	// restore status register (will re-enable interrupts if the were enabled)
-	SREG = ucSREG;
 }
 
 
