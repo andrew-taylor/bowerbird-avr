@@ -53,7 +53,7 @@
 #define DEVICE_NAME_LCD "LCD Panel"
 // These lines need to be less than 24 characters
 #define LCD_STARTUP_LINE1 "Bowerbird Starting..."
-#define LCD_STARTUP_LINE2 "Taylored Industries"
+#define LCD_STARTUP_LINE2 ""
 #define LCD_RESTORE_POWER_LINE "LCD Panel Active"
 
 #define POWER_PORT PORTC
@@ -93,9 +93,6 @@ do {                        \
     for(;;) {}              \
 } while(0)
 
-// Prototype for watchdog initialisation (to disable it on boot)
-void wdt_init(void) __attribute__((naked)) __attribute__((section(".init3")));
-
 
 /* Globals: */
 /** Contains the current baud rate and other settings of the virtual serial port.
@@ -132,9 +129,10 @@ short LCD_Lines = 0;
 
 // counter to store how many seconds since we last heard from the beagle
 int Beagle_Watchdog_Counter;
-
 // counter for delayed beagle restarting
 int Beagle_Restart_Countdown;
+// flag to store if last reset was due to the internal watchdog
+int AVR_watchdog_reset = 0;
 
 
 /** Main program entry point. This routine configures the hardware required by the application, then
@@ -148,8 +146,6 @@ int main(void)
 
 	SetupHardware();
 
-//	LEDs_SetAllLEDs(LEDMASK_USB_NOTREADY);
-	
 	for (;;)
 	{
 		CDC_Task();
@@ -163,19 +159,7 @@ int main(void)
 /** Configures the board hardware and chip peripherals for the demo's functionality. */
 void SetupHardware(void)
 {
-	// if we had an internal watchdog reset, then clear the flag and add it to
-	// our count in non-volatile memory
-	if (MCUSR & (1 << WDRF)) {
-		// We're never getting this flag set, even when a watchdog reset occurs!
-		// It could be because it causes the power to drop, so it looks like a
-		// power reset - Cam 7/11/09
-
-		MCUSR &= ~(1 << WDRF);
-		// TODO add this to the count in EEPROM
-	}
-
-	// Enable watchdog at maximum timeout (8 seconds)
-	wdt_enable(WDTO_8S);
+	InitialiseAVRWatchdog();
 
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
@@ -203,7 +187,6 @@ void SetupHardware(void)
 
 	/* Hardware Initialization */
 	Serial_Init(LineEncoding.BaudRateBPS, true);
-//	LEDs_Init();
 	USB_Init();
 
 	// Enable interrupts on USART
@@ -216,23 +199,26 @@ void SetupHardware(void)
 	if (strlen(LCD_STARTUP_LINE2))
 		WriteStringToLCD(LCD_STARTUP_LINE2);
 
+	// if we were reset by the AVR watchdog, then report this:
+	if (AVR_watchdog_reset)
+		WriteStringToLCD("AVR Internal WDT Reset");
+	
 	// set up beagle watchdog and restart timer
 	InitialiseTimers();
 	StartBeagleWatchdog();
 }
 
 
-/** Event handler for the USB_Connect event. This indicates that the device is enumerating via the status LEDs and
- *  starts the library USB task to begin the enumeration and USB management process.
+/** Event handler for the USB_Connect event. This starts the library USB task
+ *  to begin the enumeration and USB management process.
  */
 void EVENT_USB_Device_Connect(void)
 {
 	/* Indicate USB enumerating */
-//	LEDs_SetAllLEDs(LEDMASK_USB_ENUMERATING);
+	WriteStringToUSB("USB Connected");
 }
 
-/** Event handler for the USB_Disconnect event. This indicates that the device is no longer connected to a host via
- *  the status LEDs and stops the USB management and CDC management tasks.
+/** Event handler for the USB_Disconnect event. 
  */
 void EVENT_USB_Device_Disconnect(void)
 {	
@@ -241,46 +227,40 @@ void EVENT_USB_Device_Disconnect(void)
 	Buffer_Initialize(&Tx_Buffer);
 
 	/* Indicate USB not ready */
-//	LEDs_SetAllLEDs(LEDMASK_USB_NOTREADY);
+	WriteStringToUSB("USB Disconnected");
 }
 
-/** Event handler for the USB_ConfigurationChanged event. This is fired when the host set the current configuration
- *  of the USB device after enumeration - the device endpoints are configured and the CDC management task started.
+/** Event handler for the USB_ConfigurationChanged event. This is fired when
+ *  the host set the current configuration of the USB device after enumeration 
+ *  - the device endpoints are configured and the CDC management task started.
  */
 void EVENT_USB_Device_ConfigurationChanged(void)
 {
 	/* Indicate USB connected and ready */
-//	LEDs_SetAllLEDs(LEDMASK_USB_READY);
+	WriteStringToUSB("USB Config Changed");
 
 	/* Setup CDC Notification, Rx and Tx Endpoints */
 	if (!(Endpoint_ConfigureEndpoint(CDC_NOTIFICATION_EPNUM, EP_TYPE_INTERRUPT,
-		                             ENDPOINT_DIR_IN, CDC_NOTIFICATION_EPSIZE,
-	                                 ENDPOINT_BANK_SINGLE)))
-	{
-//		LEDs_SetAllLEDs(LEDMASK_USB_ERROR);
+			 ENDPOINT_DIR_IN, CDC_NOTIFICATION_EPSIZE, ENDPOINT_BANK_SINGLE))) {
+		WriteStringToUSB("USBConfErr Notify EP");
 	}
 	
 	if (!(Endpoint_ConfigureEndpoint(CDC_TX_EPNUM, EP_TYPE_BULK,
-		                             ENDPOINT_DIR_IN, CDC_TXRX_EPSIZE,
-	                                 ENDPOINT_BANK_SINGLE)))
-	{
-//		LEDs_SetAllLEDs(LEDMASK_USB_ERROR);
+			ENDPOINT_DIR_IN, CDC_TXRX_EPSIZE, ENDPOINT_BANK_SINGLE))) {
+		WriteStringToUSB("USBConfErr Transmit EP");
 	}							   
 
 	if (!(Endpoint_ConfigureEndpoint(CDC_RX_EPNUM, EP_TYPE_BULK,
-		                             ENDPOINT_DIR_OUT, CDC_TXRX_EPSIZE,
-	                                 ENDPOINT_BANK_SINGLE)))
-	{
-//		LEDs_SetAllLEDs(LEDMASK_USB_ERROR);
+			ENDPOINT_DIR_OUT, CDC_TXRX_EPSIZE, ENDPOINT_BANK_SINGLE))) {
+		WriteStringToUSB("USBConfErr Receive EP");
 	}
-
-	/* Reset line encoding baud rate so that the host knows to send new values */
-	//LineEncoding.BaudRateBPS = 0;
 }
 
-/** Event handler for the USB_UnhandledControlRequest event. This is used to catch standard and class specific
- *  control requests that are not handled internally by the USB library (including the CDC control commands,
- *  which are all issued via the control endpoint), so that they can be handled appropriately for the application.
+/** Event handler for the USB_UnhandledControlRequest event. This is used to
+ *  catch standard and class specific control requests that are not handled
+ *  internally by the USB library (including the CDC control commands,
+ *  which are all issued via the control endpoint), so that they can be handled
+ *  appropriately for the application.
  */
 void EVENT_USB_Device_UnhandledControlRequest(void)
 {
@@ -288,8 +268,8 @@ void EVENT_USB_Device_UnhandledControlRequest(void)
 	switch (USB_ControlRequest.bRequest)
 	{
 		case REQ_GetLineEncoding:
-			if (USB_ControlRequest.bmRequestType == (REQDIR_DEVICETOHOST | REQTYPE_CLASS | REQREC_INTERFACE))
-			{	
+			if (USB_ControlRequest.bmRequestType == (REQDIR_DEVICETOHOST 
+					| REQTYPE_CLASS | REQREC_INTERFACE)) {	
 				/* Acknowledge the SETUP packet, ready for data transfer */
 				Endpoint_ClearSETUP();
 
@@ -302,29 +282,24 @@ void EVENT_USB_Device_UnhandledControlRequest(void)
 			
 			break;
 		case REQ_SetLineEncoding:
-			if (USB_ControlRequest.bmRequestType == (REQDIR_HOSTTODEVICE | REQTYPE_CLASS | REQREC_INTERFACE))
-			{
+			if (USB_ControlRequest.bmRequestType == (REQDIR_HOSTTODEVICE
+					| REQTYPE_CLASS | REQREC_INTERFACE)) {
 				/* Acknowledge the SETUP packet, ready for data transfer */
 				Endpoint_ClearSETUP();
 
 				/* Read the line coding data in from the host into the global struct */
-				// camerons 23/10/09 - disable this functionality because it
-				// keeps changing the baud rate to low values
+				// camerons 23/10/09 - disable this functionality because we're
+				// always connecting to a 115200n8 serial device
 				//Endpoint_Read_Control_Stream_LE(&LineEncoding, sizeof(LineEncoding));
 
 				/* Finalize the stream transfer to clear the last packet from the host */
 				Endpoint_ClearIN();
-				
-				/* Reconfigure the USART with the new settings */
-				// camerons 23/10/09 - disable this functionality because it
-				// keeps changing the baud rate to low values
-				//ReconfigureUSART();
 			}
 	
 			break;
 		case REQ_SetControlLineState:
-			if (USB_ControlRequest.bmRequestType == (REQDIR_HOSTTODEVICE | REQTYPE_CLASS | REQREC_INTERFACE))
-			{				
+			if (USB_ControlRequest.bmRequestType == (REQDIR_HOSTTODEVICE 
+					| REQTYPE_CLASS | REQREC_INTERFACE)) {				
 				/* Acknowledge the SETUP packet, ready for data transfer */
 				Endpoint_ClearSETUP();
 				
@@ -347,30 +322,6 @@ void CDC_Task(void)
 	if (USB_DeviceState != DEVICE_STATE_Configured)
 		return;
 	  
-#if 0
-	/* NOTE: Here you can use the notification endpoint to send back line state changes to the host, for the special RS-232
-			 handshake signal lines (and some error states), via the CONTROL_LINE_IN_* masks and the following code:
-	*/
-
-	USB_Notification_Header_t Notification = (USB_Notification_Header_t)
-		{
-			.NotificationType = (REQDIR_DEVICETOHOST | REQTYPE_CLASS | REQREC_INTERFACE),
-			.Notification     = NOTIF_SerialState,
-			.wValue           = 0,
-			.wIndex           = 0,
-			.wLength          = sizeof(uint16_t),
-		};
-		
-	uint16_t LineStateMask;
-	
-	// Set LineStateMask here to a mask of CONTROL_LINE_IN_* masks to set the input handshake line states to send to the host
-	
-	Endpoint_SelectEndpoint(CDC_NOTIFICATION_EPNUM);
-	Endpoint_Write_Stream_LE(&Notification, sizeof(Notification));
-	Endpoint_Write_Stream_LE(&LineStateMask, sizeof(LineStateMask));
-	Endpoint_ClearIN();
-#endif
-
 	/* Select the Serial Rx Endpoint */
 	Endpoint_SelectEndpoint(CDC_RX_EPNUM);
 	
@@ -762,9 +713,9 @@ ISR(TIMER1_COMPA_vect, ISR_BLOCK)
 {
 	if (++Beagle_Watchdog_Counter > WATCHDOG_TIMEOUT_S) {
 #ifdef WATCHDOG_DRY_RUN
-		ProcessLCDCommand("Watchdog timer went off");
+		ProcessLCDCommand("Beagle Watchdog went off");
 #else
-		ProcessBeagleResetCommand("Watchdog timer went off");
+		ProcessBeagleResetCommand("Beagle Watchdog timer went off");
 #endif
 		Beagle_Watchdog_Counter = 0;
 
@@ -808,48 +759,22 @@ ISR(USART1_RX_vect, ISR_BLOCK)
 	ProcessByte(ReceivedByte);
 }
 
-/** Reconfigures the USART to match the current serial port settings issued by the host as closely as possible. */
-void ReconfigureUSART(void)
+
+/** Implementation for watchdog initialisation */
+void InitialiseAVRWatchdog(void)
 {
-	uint8_t ConfigMask = 0;
+	// if we had an internal watchdog reset, then clear the flag and add it to
+	// our count in non-volatile memory
+	if (MCUSR & (1 << WDRF)) {
+		MCUSR &= ~(1 << WDRF);
+		AVR_watchdog_reset = 1;
+		// TODO add this to the count in EEPROM
+	}
 
-	/* Determine parity - non odd/even parity mode defaults to no parity */
-	if (LineEncoding.ParityType == Parity_Odd)
-	  ConfigMask = ((1 << UPM11) | (1 << UPM10));
-	else if (LineEncoding.ParityType == Parity_Even)
-	  ConfigMask = (1 << UPM11);
-
-	/* Determine stop bits - 1.5 stop bits is set as 1 stop bit due to hardware limitations */
-	if (LineEncoding.CharFormat == TwoStopBits)
-	  ConfigMask |= (1 << USBS1);
-
-	/* Determine data size - 5, 6, 7, or 8 bits are supported */
-	if (LineEncoding.DataBits == 6)
-	  ConfigMask |= (1 << UCSZ10);
-	else if (LineEncoding.DataBits == 7)
-	  ConfigMask |= (1 << UCSZ11);
-	else if (LineEncoding.DataBits == 8)
-	  ConfigMask |= ((1 << UCSZ11) | (1 << UCSZ10));
-	
-	/* Enable double speed, gives better error percentages at 8MHz */
-	UCSR1A = (1 << U2X1);
-	
-	/* Enable transmit and receive modules and interrupts */
-	UCSR1B = ((1 << RXCIE1) | (1 << TXEN1) | (1 << RXEN1));
-
-	/* Set the USART mode to the mask generated by the Line Coding options */
-	UCSR1C = ConfigMask;
-	
-	/* Set the USART baud rate register to the desired baud rate value */
-	UBRR1  = SERIAL_2X_UBBRVAL((uint16_t)LineEncoding.BaudRateBPS);
-}
-
-
-// Implementation for watchdog initialisation (to disable it on boot)
-void wdt_init(void)
-{
-    MCUSR = 0;
-    wdt_disable();
+	// Enable watchdog at maximum timeout (8 seconds)
+	// NOTE: if setting this to a small value, make sure that the code will get
+	// to the wdt_reset call in the main loop in time.
+	wdt_enable(WDTO_8S);
 
     return;
 }

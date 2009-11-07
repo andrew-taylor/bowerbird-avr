@@ -50,7 +50,6 @@
 		#include <LUFA/Version.h>
 		#include <LUFA/Drivers/USB/USB.h>
 		#include <LUFA/Drivers/Peripheral/Serial.h>
-//		#include <LUFA/Drivers/Board/LEDs.h>
 
 	/* Macros: */
 		/** CDC Class specific request to get the current virtual serial port configuration settings. */
@@ -113,18 +112,6 @@
 		 */
 		#define CONTROL_LINE_IN_OVERRUNERROR (1 << 6)
 
-		/** LED mask for the library LED driver, to indicate that the USB interface is not ready. */
-//		#define LEDMASK_USB_NOTREADY      LEDS_LED1
-
-		/** LED mask for the library LED driver, to indicate that the USB interface is enumerating. */
-//		#define LEDMASK_USB_ENUMERATING  (LEDS_LED2 | LEDS_LED3)
-
-		/** LED mask for the library LED driver, to indicate that the USB interface is ready. */
-//		#define LEDMASK_USB_READY        (LEDS_LED2 | LEDS_LED4)
-
-		/** LED mask for the library LED driver, to indicate that an error has occurred in the USB interface. */
-//		#define LEDMASK_USB_ERROR        (LEDS_LED1 | LEDS_LED3)
-		
 	/* Type Defines: */
 		/** Type define for the virtual serial port line encoding settings, for storing the current USART configuration
 		 *  as set by the host via a class specific request.
@@ -190,6 +177,7 @@
 		void EchoSpecialLinesToLCD(char *line);
 		void WriteStringToLCD(char *, ...);
 		void WriteStringToUSB(char *, ...);
+		void InitialiseAVRWatchdog(void);
 	
 		void EVENT_USB_Device_Connect(void);
 		void EVENT_USB_Device_Disconnect(void);
