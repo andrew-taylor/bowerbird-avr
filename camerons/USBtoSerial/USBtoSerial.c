@@ -29,7 +29,6 @@
 */
 
 #include "USBtoSerial.h"
-#include <util/delay.h>
 #include <stdarg.h>
 #include <string.h>
 #include <avr/wdt.h>
@@ -54,7 +53,6 @@
 // These lines need to be less than 24 characters
 #define LCD_STARTUP_LINE1 "Bowerbird Starting..."
 #define LCD_STARTUP_LINE2 ""
-#define LCD_RESTORE_POWER_LINE "LCD Panel Active"
 
 #define POWER_PORT PORTC
 #define BEAGLE_RESET_CMD "REALLY reset the Beagleboard"
@@ -119,6 +117,7 @@ short InCommand = 0;
 
 // buffer to store the second line so it can be "scrolled" up to the first line
 // on the next write
+short LCD_on = 1;
 char LCD_Buffer[LCD_LINE_LENGTH + 1];
 short LCD_Lines = 0;
 
@@ -550,6 +549,8 @@ void ProcessPowerCommand(char *cmd)
 	}
 	else if (strncmp(cmd, POWER_LCD, strlen(POWER_LCD)) == 0) {
 		is_on_power_port = 0;
+		// remember if the LCD is on so we can ignore writes to it when its off
+		LCD_on = new_power_state;
 		// handle LCD power commands specially, because it's a GPIO directly to
 		// the LCD power pin
 		if (new_power_state) {
@@ -557,8 +558,6 @@ void ProcessPowerCommand(char *cmd)
 			LCD_PORT = (1 << POWER_PIN_LCD);
 			// re-initialise the lcd
 			lcd_init(LCD_DISP_ON);
-			// write a message to show we've powered it back on
-			WriteStringToLCD(LCD_RESTORE_POWER_LINE);
 		}
 		else {
 			// shut down all pins to the LCD (including the power enable pin)
@@ -656,6 +655,10 @@ void SetDelayedBeagleWakeup(int seconds)
  */
 void WriteStringToLCD(char *format, ...)
 {
+	// prevent lengthy timeout when LCD is off
+	if (!LCD_on)
+		return;
+
 	char string[MAX_LINE_LENGTH];
 	va_list ap;
 	va_start(ap, format);
