@@ -154,15 +154,33 @@ int main(void)
 	{
 		CDC_Task();
 		USB_USBTask();
+
+		// reset the internal watchdog
+		wdt_reset();
 	}
 }
 
 /** Configures the board hardware and chip peripherals for the demo's functionality. */
 void SetupHardware(void)
 {
-	/* Disable watchdog if enabled by bootloader/fuses */
-	MCUSR &= ~(1 << WDRF);
-	wdt_disable();
+	// save the status register
+	unsigned char ucSREG = SREG;
+	// disable interrupts
+	cli();
+
+	// if we had an internal watchdog reset, then clear the flag and add it to
+	// our count in non-volatile memory
+	if (MCUSR & (1 << WDRF)) {
+		// We're never getting this flag set, even when a watchdog reset occurs!
+		// It could be because it causes the power to drop, so it looks like a
+		// power reset - Cam 7/11/09
+
+		MCUSR &= ~(1 << WDRF);
+		// TODO add this to the count in EEPROM
+	}
+
+	// Enable watchdog at maximum timeout (8 seconds)
+	wdt_enable(WDTO_8S);
 
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
@@ -206,6 +224,9 @@ void SetupHardware(void)
 	// set up beagle watchdog and restart timer
 	InitialiseTimers();
 	StartBeagleWatchdog();
+
+	// restore status register (will re-enable interrupts if the were enabled)
+	SREG = ucSREG;
 }
 
 
@@ -425,7 +446,6 @@ void InitialiseTimers()
 {
 	// save the status register
 	unsigned char ucSREG = SREG;
-
 	// disable interrupts to prevent race conditions with 16bit registers
 	cli();
 
@@ -446,7 +466,7 @@ void InitialiseTimers()
 void StartBeagleWatchdog()
 {
 	Beagle_Watchdog_Counter = 0;
-	WriteStringToLCD("Watchdog enabled");
+	WriteStringToLCD("Beagle Watchdog enabled");
 	
 	TCCR1B  = (1 << WGM12)  // Clear-timer-on-compare-match-OCR1A (CTC) mode
 			| (1 << CS12) | (1 << CS10);  // prescaler divides by 1024
@@ -457,7 +477,7 @@ void StartBeagleWatchdog()
 /** Start the watchdog timer */
 void StopBeagleWatchdog()
 {
-	WriteStringToLCD("Watchdog disabled");
+	WriteStringToLCD("Beagle Watchdog disabled");
 	TIMSK1 &= ~(1 << OCIE1A); // Disable timer interrupt
 	TCCR1B &= ~(1 << CS10) & ~(1 << CS11) & ~(1 << CS12); // disable clock
 }
@@ -755,6 +775,8 @@ ISR(TIMER1_COMPA_vect, ISR_BLOCK)
 		ProcessBeagleResetCommand("Watchdog timer went off");
 #endif
 		Beagle_Watchdog_Counter = 0;
+
+		// TODO add this to the count in EEPROM
 	}
 }
 
