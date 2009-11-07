@@ -38,7 +38,7 @@
 #define WATCHDOG_DRY_RUN
 
 #define MAX_LINE_LENGTH 1024
-#define COMMAND_PREFIX "#!# AVR "
+#define COMMAND_PREFIX "#=# AVR "
 
 #define WATCHDOG_CMD "watchdog"
 #define WATCHDOG_ENABLE "enable"
