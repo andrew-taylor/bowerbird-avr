@@ -174,7 +174,6 @@
 		void ProcessWatchdogCommand(char *);
 		void PowerOn(int, int);
 		void SetDelayedBeagleWakeup(int);
-		void EchoSpecialLinesToLCD(char *line);
 		void WriteStringToLCD(char *, ...);
 		void WriteStringToUSB(char *, ...);
 		void InitialiseAVRWatchdog(void);

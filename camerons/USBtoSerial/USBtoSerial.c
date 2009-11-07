@@ -38,7 +38,7 @@
 #define WATCHDOG_DRY_RUN
 
 #define MAX_LINE_LENGTH 1024
-#define AVR_LINE_MARKER "#!# AVR"
+#define COMMAND_PREFIX "#!# AVR "
 
 #define WATCHDOG_CMD "watchdog"
 #define WATCHDOG_ENABLE "enable"
@@ -81,11 +81,6 @@
 
 #define RESET_CMD "REALLY reset the AVR"
 
-#define BEAGLE_MSG_LOGIN "Ubuntu 9.04 beagleboard ttyS2"
-#define LCD_MSG_LOGIN "Beagle Ready for login"
-#define BEAGLE_MSG_HALTED "System Halted."
-#define LCD_MSG_HALTED "Beagle Halted"
-
 
 #define soft_reset()        \
 do {                        \
@@ -116,11 +111,11 @@ RingBuff_t Tx_Buffer;
 /** Flag to indicate if the USART is currently transmitting data from the Rx_Buffer circular buffer. */
 volatile bool Transmitting = false;
 
-/** Buffer to store the last line received on the serial port so we can process
- * commands to the AVR
- */
-char SerialBuffer[MAX_LINE_LENGTH];
-short SerialBufferIndex = 0;
+/** Buffer to store the last AVR command received on the serial port */
+char CommandBuffer[MAX_LINE_LENGTH];
+short CommandBufferIndex = 0;
+short CommandPrefixIndex = 0;
+short InCommand = 0;
 
 // buffer to store the second line so it can be "scrolled" up to the first line
 // on the next write
@@ -427,52 +422,62 @@ void StopBeagleWatchdog()
 
 
 /** Process bytes received on the serial port to see if there's any commands to
- *  the AVR itself
+ *  the AVR itself. We're looking for strings that start with the #defined
+ *  magic string and end with a newline.
  */
 void ProcessByte(uint8_t ReceivedByte)
 {
-	// check if this is the end of the line
-	if (ReceivedByte == '\n' || ReceivedByte == '\r') {
-		// null-terminate the string in the buffer
-		SerialBuffer[SerialBufferIndex] = '\0';
-		// see if this is a line for the AVR
-		if (strncmp(SerialBuffer, AVR_LINE_MARKER, strlen(AVR_LINE_MARKER)) == 0) {
-			char *cmd = SerialBuffer + strlen(AVR_LINE_MARKER) + 1;
-			
+	// reset the watchdog
+	Beagle_Watchdog_Counter = 0;
+
+	// If we're currently read in a command, then pay attention
+	if (InCommand) {
+		// check if this is the end of the line
+		if (ReceivedByte == '\n' || ReceivedByte == '\r') {
+			// null-terminate the string in the buffer
+			CommandBuffer[CommandBufferIndex] = '\0';
+
 			// see if we understand the command
-			if (strncmp(cmd, BEAGLE_RESET_CMD, strlen(BEAGLE_RESET_CMD)) == 0) {
-				ProcessBeagleResetCommand(cmd + strlen(BEAGLE_RESET_CMD) + 1);
+			if (strncmp(CommandBuffer, BEAGLE_RESET_CMD, strlen(BEAGLE_RESET_CMD)) == 0) {
+				ProcessBeagleResetCommand(CommandBuffer + strlen(BEAGLE_RESET_CMD) + 1);
 			}
-			else if (strncmp(cmd, POWER_CMD, strlen(POWER_CMD)) == 0) {
-				ProcessPowerCommand(cmd + strlen(POWER_CMD) + 1);
+			else if (strncmp(CommandBuffer, POWER_CMD, strlen(POWER_CMD)) == 0) {
+				ProcessPowerCommand(CommandBuffer + strlen(POWER_CMD) + 1);
 			}
-			else if (strncmp(cmd, LCD_CMD, strlen(LCD_CMD)) == 0) {
-				ProcessLCDCommand(cmd + strlen(LCD_CMD) + 1);
+			else if (strncmp(CommandBuffer, LCD_CMD, strlen(LCD_CMD)) == 0) {
+				ProcessLCDCommand(CommandBuffer + strlen(LCD_CMD) + 1);
 			}
-			else if (strncmp(cmd, WATCHDOG_CMD, strlen(WATCHDOG_CMD)) == 0) {
-				ProcessWatchdogCommand(cmd + strlen(WATCHDOG_CMD) + 1);
+			else if (strncmp(CommandBuffer, WATCHDOG_CMD, strlen(WATCHDOG_CMD)) == 0) {
+				ProcessWatchdogCommand(CommandBuffer + strlen(WATCHDOG_CMD) + 1);
 			}
-			else if (strncmp(cmd, RESET_CMD, strlen(RESET_CMD)) == 0) {
+			else if (strncmp(CommandBuffer, RESET_CMD, strlen(RESET_CMD)) == 0) {
 				soft_reset();
 			}
 			else {
-				WriteStringToUSB("\r\nGot unknown AVR command '%s'\r\n", cmd);
+				WriteStringToUSB("\r\nGot unknown AVR command '%s'\r\n", CommandBuffer);
 				WriteStringToLCD("Unknown command:");
-				WriteStringToLCD(cmd);
+				WriteStringToLCD(CommandBuffer);
 			}
-		}
-		else {
-			EchoSpecialLinesToLCD(SerialBuffer);
-		}
 
-		// reset the watchdog
-		Beagle_Watchdog_Counter = 0;
-
-		// clear the buffer
-		SerialBufferIndex = 0;
+			// clear the buffer
+			CommandBufferIndex = 0;
+			// clear the flag
+			InCommand = 0;
+		}
+		else if (CommandBufferIndex < MAX_LINE_LENGTH) {
+			CommandBuffer[CommandBufferIndex++] = ReceivedByte;
+		}
 	}
-	else if (SerialBufferIndex < MAX_LINE_LENGTH) {
-		SerialBuffer[SerialBufferIndex++] = ReceivedByte;
+	// see if this is a line for the AVR
+	else if (ReceivedByte == COMMAND_PREFIX[CommandPrefixIndex]) {
+		CommandPrefixIndex++;
+		if (CommandPrefixIndex >= strlen(COMMAND_PREFIX)) {
+			CommandPrefixIndex = 0;
+			InCommand = 1;
+		}
+	}
+	else {
+		CommandPrefixIndex = 0;
 	}
 }
 
@@ -643,18 +648,6 @@ void SetDelayedBeagleWakeup(int seconds)
 	TCCR3B  = (1 << WGM32)  // Clear-timer-on-compare-match-OCR3A (CTC) mode
 			| (1 << CS32) | (1 << CS30);  // prescaler divides by 1024
 	TIMSK3 |= (1 << OCIE3A); // Enable timer interrupt
-}
-
-
-/** Check current line to see if it's worth echoing to the LCD
- * (e.g. system halted)
- */
-void EchoSpecialLinesToLCD(char *line)
-{
-	if (strncmp(line, BEAGLE_MSG_LOGIN, MAX_LINE_LENGTH) == 0)
-		WriteStringToLCD(LCD_MSG_LOGIN);
-	else if (strncmp(line + 15, BEAGLE_MSG_HALTED, MAX_LINE_LENGTH) == 0)
-		WriteStringToLCD(LCD_MSG_HALTED);
 }
 
 
