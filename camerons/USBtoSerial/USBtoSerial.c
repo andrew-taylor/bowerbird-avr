@@ -56,9 +56,15 @@
 #define LCD_STARTUP_LINE2 ""
 #define LCD_RESTORE_POWER_LINE "LCD Panel Active"
 
+#define NEW_CABLE
+
 #define POWER_PORT PORTC
 #define BEAGLE_RESET_CMD "REALLY reset the Beagleboard"
+#ifdef NEW_CABLE
 #define POWER_PIN_BEAGLE 0
+#else
+#define POWER_PIN_BEAGLE 7
+#endif
 #define BEAGLE_RESET_DURATION_IN_S 10
 #define POWER_CMD "power"
 #define POWER_ON "on"
@@ -526,6 +532,9 @@ void ProcessPowerCommand(char *cmd)
 	if (cmd[0] >= '1' && cmd[0] <= '9') {
 		is_on_power_port = 1;
 		pin = cmd[0] - '1';
+#ifdef NEW_CABLE
+		pin = 7 - pin;
+#endif
 		device_name = "pin";
 	}
 	else if (strncmp(cmd, POWER_MIC, strlen(POWER_MIC)) == 0) {
