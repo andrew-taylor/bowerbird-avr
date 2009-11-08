@@ -523,7 +523,12 @@ void ProcessPowerCommand(char *cmd)
 	}
 
 	// now parse what device to turn on or off
-	if (strncmp(cmd, POWER_MIC, strlen(POWER_MIC)) == 0) {
+	if (cmd[0] >= '1' && cmd[0] <= '9') {
+		is_on_power_port = 1;
+		pin = cmd[0] - '1';
+		device_name = "pin";
+	}
+	else if (strncmp(cmd, POWER_MIC, strlen(POWER_MIC)) == 0) {
 		is_on_power_port = 1;
 		pin = POWER_PIN_MIC;
 		device_name = DEVICE_NAME_MIC;
@@ -566,6 +571,7 @@ void ProcessPowerCommand(char *cmd)
 			LCD_PORT = 0;
 		}
 		device_name = DEVICE_NAME_LCD;
+		pin = 0;
 	}
 	else {
 		WriteStringToUSB("\r\nGot request to turn %s unknown device: '%s'\r\n", 
@@ -581,9 +587,9 @@ void ProcessPowerCommand(char *cmd)
 	}
 
 	// report to host
-	WriteStringToUSB("\r\nAVR Power System: Turned %s %s\r\n",
-				new_power_state ? "on" : "off", device_name);
-	WriteStringToLCD("%s: %s", new_power_state ? "ON" : "OFF", device_name);
+	WriteStringToUSB("\r\nAVR Power System: Turned %s %s[%d]\r\n",
+				new_power_state ? "on" : "off", device_name, pin);
+	WriteStringToLCD("%s: %s[%d]", new_power_state ? "ON" : "OFF", device_name, pin);
 }
 
 
