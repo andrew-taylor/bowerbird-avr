@@ -215,7 +215,7 @@ void SetupHardware(void)
 void EVENT_USB_Device_Connect(void)
 {
 	/* Indicate USB enumerating */
-	WriteStringToUSB("USB Connected");
+	WriteStringToLCD("USB Connected");
 }
 
 /** Event handler for the USB_Disconnect event. 
@@ -227,7 +227,7 @@ void EVENT_USB_Device_Disconnect(void)
 	Buffer_Initialize(&Tx_Buffer);
 
 	/* Indicate USB not ready */
-	WriteStringToUSB("USB Disconnected");
+	WriteStringToLCD("USB Disconnected");
 }
 
 /** Event handler for the USB_ConfigurationChanged event. This is fired when
@@ -237,22 +237,22 @@ void EVENT_USB_Device_Disconnect(void)
 void EVENT_USB_Device_ConfigurationChanged(void)
 {
 	/* Indicate USB connected and ready */
-	WriteStringToUSB("USB Config Changed");
+	WriteStringToLCD("USB Config Changed");
 
 	/* Setup CDC Notification, Rx and Tx Endpoints */
 	if (!(Endpoint_ConfigureEndpoint(CDC_NOTIFICATION_EPNUM, EP_TYPE_INTERRUPT,
 			 ENDPOINT_DIR_IN, CDC_NOTIFICATION_EPSIZE, ENDPOINT_BANK_SINGLE))) {
-		WriteStringToUSB("USBConfErr Notify EP");
+		WriteStringToLCD("USBConfErr Notify EP");
 	}
 	
 	if (!(Endpoint_ConfigureEndpoint(CDC_TX_EPNUM, EP_TYPE_BULK,
 			ENDPOINT_DIR_IN, CDC_TXRX_EPSIZE, ENDPOINT_BANK_SINGLE))) {
-		WriteStringToUSB("USBConfErr Transmit EP");
+		WriteStringToLCD("USBConfErr Transmit EP");
 	}							   
 
 	if (!(Endpoint_ConfigureEndpoint(CDC_RX_EPNUM, EP_TYPE_BULK,
 			ENDPOINT_DIR_OUT, CDC_TXRX_EPSIZE, ENDPOINT_BANK_SINGLE))) {
-		WriteStringToUSB("USBConfErr Receive EP");
+		WriteStringToLCD("USBConfErr Receive EP");
 	}
 }
 
