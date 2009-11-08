@@ -36,12 +36,16 @@
 // defining this prevents the watchdog from actually resetting the beagle
 #define WATCHDOG_DRY_RUN
 
+// defining this causes the watchdog to be reset by *any* comms from the beagle
+// #define WATCHDOG_RESET_ON_ALL_COMMS
+
 #define MAX_LINE_LENGTH 1024
-#define COMMAND_PREFIX "#=# AVR "
+#define COMMAND_PREFIX "^@^ AVR "
 
 #define WATCHDOG_CMD "watchdog"
 #define WATCHDOG_ENABLE "enable"
 #define WATCHDOG_DISABLE "disable"
+#define WATCHDOG_PULSE "pulse"
 #define WATCHDOG_TIMEOUT_S 600
 #define WATCHDOG_PRESCALER 1024
 
@@ -69,7 +73,7 @@
 #define POWER_OFF "off"
 #define POWER_MIC "usbmic"
 #define POWER_PIN_MIC 1
-#define DEVICE_NAME_MIC "USB Microphone Array"
+#define DEVICE_NAME_MIC "USB Microphones"
 #define POWER_USBHUB "usbhub"
 #define POWER_PIN_USBHUB 2
 #define DEVICE_NAME_USBHUB "USB Hub"
@@ -237,7 +241,7 @@ void EVENT_USB_Device_Disconnect(void)
 void EVENT_USB_Device_ConfigurationChanged(void)
 {
 	/* Indicate USB connected and ready */
-	WriteStringToLCD("USB Config Changed");
+	//WriteStringToLCD("USB Config Changed");
 
 	/* Setup CDC Notification, Rx and Tx Endpoints */
 	if (!(Endpoint_ConfigureEndpoint(CDC_NOTIFICATION_EPNUM, EP_TYPE_INTERRUPT,
@@ -432,8 +436,10 @@ void StopBeagleWatchdog()
  */
 void ProcessByte(uint8_t ReceivedByte)
 {
+#ifdef WATCHDOG_RESET_ON_ALL_COMMS
 	// reset the watchdog
 	Beagle_Watchdog_Counter = 0;
+#endif
 
 	// If we're currently read in a command, then pay attention
 	if (InCommand) {
@@ -629,6 +635,10 @@ void ProcessWatchdogCommand(char *cmd)
 	}
 	else if (strncmp(cmd, WATCHDOG_DISABLE, strlen(WATCHDOG_DISABLE)) == 0) {
 		StopBeagleWatchdog();
+	}
+	else if (strncmp(cmd, WATCHDOG_PULSE, strlen(WATCHDOG_PULSE)) == 0) {
+		// Reset the beagle watchdog counter
+		Beagle_Watchdog_Counter = 0;
 	}
 	else {
 		WriteStringToUSB("\r\nGot unrecognised WATCHDOG command '%s'\r\n", cmd);
