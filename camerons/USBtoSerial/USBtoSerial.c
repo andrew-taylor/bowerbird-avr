@@ -173,9 +173,8 @@ void SetupHardware(void)
 
 	// Turn on power to devices that should have it (Beagle at least)
 	LCD_PORT |= (1 << POWER_PIN_LCD);
-	// Turn everything on
-	// (power port pins are active low)
-	PowerOn(ALL_POWER_PINS, 1);
+	// Turn everything on (soon)
+	SetDelayedBeagleWakeup(5);
 
 	/* Serial Port Initialization */
 	Serial_Init(LineEncoding.BaudRateBPS, true);
@@ -736,6 +735,7 @@ ISR(TIMER3_COMPA_vect, ISR_BLOCK)
 
 		// turn everything back on
 		PowerOn(ALL_POWER_PINS, 1);
+
 		WriteStringToLCD("ON: Beagleboard");
 		WriteStringToUSB("\r\nBeagleboard being turned on again.\r\n");
 	}
