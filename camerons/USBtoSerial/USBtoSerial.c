@@ -63,9 +63,9 @@
 #define POWER_PORT PORTC
 #define BEAGLE_RESET_CMD "REALLY reset the Beagleboard"
 #ifdef NEW_CABLE
-#define POWER_PIN_BEAGLE 0
-#else
 #define POWER_PIN_BEAGLE 7
+#else
+#define POWER_PIN_BEAGLE 0
 #endif
 #define BEAGLE_RESET_DURATION_IN_S 10
 #define POWER_CMD "power"
@@ -533,10 +533,13 @@ void ProcessPowerCommand(char *cmd)
 		return;
 	}
 
+    int sw;
+    sw = 0;
 	// now parse what device to turn on or off
 	if (cmd[0] >= '1' && cmd[0] <= '9') {
 		is_on_power_port = 1;
 		pin = cmd[0] - '1';
+        sw = pin + 1;
 #ifdef NEW_CABLE
 		pin = 7 - pin;
 #endif
@@ -601,9 +604,9 @@ void ProcessPowerCommand(char *cmd)
 	}
 
 	// report to host
-	WriteStringToUSB("\r\nAVR Power System: Turned %s %s[%d]\r\n",
-				new_power_state ? "on" : "off", device_name, pin);
-	WriteStringToLCD("%s: %s[%d]", new_power_state ? "ON" : "OFF", device_name, pin);
+	WriteStringToUSB("\r\nAVR Power System: Turned %s %s[%d] sw%d\r\n",
+				new_power_state ? "on" : "off", device_name, pin, sw);
+	WriteStringToLCD("%s: %s[%d] sw%d", new_power_state ? "ON" : "OFF", device_name, pin, sw);
 }
 
 
