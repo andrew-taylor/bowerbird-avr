@@ -186,8 +186,9 @@ void SetupHardware(void)
 	// Turn everything off
 	// (power port pins are active low)
 	POWER_PORT = 0xFF;
-	PowerOn(POWER_PIN_BEAGLE, 1);
-	PowerOn(POWER_PIN_USBHUB, 1);
+//	PowerOn(POWER_PIN_BEAGLE, 1);
+//	PowerOn(POWER_PIN_USBHUB, 1);
+	SetDelayedBeagleWakeup(5);
 
 	/* Hardware Initialization */
 	Serial_Init(LineEncoding.BaudRateBPS, true);
@@ -502,8 +503,11 @@ void ProcessBeagleResetCommand(char *cmd)
 	// report to host that we're resetting the beagle
 	WriteStringToUSB("\r\nResetting Beagleboard (%s)\r\n", cmd);
 	WriteStringToLCD("OFF: Beagleboard");
+	// Turn everything off
+	// (power port pins are active low)
+	POWER_PORT = 0xFF;
 	// turn off power to beagle
-	PowerOn(POWER_PIN_BEAGLE, 0);
+//	PowerOn(POWER_PIN_BEAGLE, 0);
 
 	SetDelayedBeagleWakeup(BEAGLE_RESET_DURATION_IN_S);
 }
@@ -759,8 +763,11 @@ ISR(TIMER3_COMPA_vect, ISR_BLOCK)
 		TIMSK3 &= ~(1 << OCIE3A); // Disable timer interrupt
 		TCCR3B &= ~(1 << CS30) & ~(1 << CS31) & ~(1 << CS32); // disable clock
 
+		// turn everything on
+		POWER_PORT = 0;
 		// turn power to beagle back on
-		PowerOn(POWER_PIN_BEAGLE, 1);
+//		PowerOn(POWER_PIN_BEAGLE, 1);
+
 		WriteStringToLCD("ON: Beagleboard");
 		WriteStringToUSB("\r\nBeagleboard being turned on again.\r\n");
 	}
