@@ -65,7 +65,7 @@
 #define BEAGLE_RESET_CMD "REALLY reset the Beagleboard"
 #ifdef NEW_CABLE
 	#define POWER_PIN_BEAGLE 7
-	#define POWER_PIN_USBMIC 6
+	#define POWER_PIN_MIC 6
 #else
 	#define POWER_PIN_BEAGLE 0
 	#define POWER_PIN_MIC 1
