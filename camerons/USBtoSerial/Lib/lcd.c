@@ -28,6 +28,11 @@
 #include "lcd.h"
 
 
+/** maximum number of loops to wait for busy flag
+ *  FIXME this should be set to be calculated from the LCD timeout
+ */
+#define MAX_BUSY_LOOPS 10000
+
 
 /* 
 ** constants/macros 
@@ -286,9 +291,12 @@ static uint8_t lcd_waitbusy(void)
 
 {
     register uint8_t c;
+	int loops = 0;
     
     /* wait until busy flag is cleared */
-    while ( (c=lcd_read(0)) & (1<<LCD_BUSY)) {}
+    while ( (c=lcd_read(0)) & (1<<LCD_BUSY) && loops++ < MAX_BUSY_LOOPS ) {
+		lcd_e_delay();
+	}
     
     /* the address counter is updated 4us after the busy flag is cleared */
     delay(2);
