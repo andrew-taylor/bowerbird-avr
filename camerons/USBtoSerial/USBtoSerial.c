@@ -34,13 +34,13 @@
 #include <avr/wdt.h>
 
 // defining this prevents the watchdog from actually resetting the beagle
-#define WATCHDOG_DRY_RUN
+//#define WATCHDOG_DRY_RUN
 
 // defining this causes the watchdog to be reset by *any* comms from the beagle
-// #define WATCHDOG_RESET_ON_ALL_COMMS
+#define WATCHDOG_RESET_ON_ALL_COMMS
 
 #define MAX_LINE_LENGTH 1024
-#define COMMAND_PREFIX "^@^ AVR "
+#define COMMAND_PREFIX "avr://"
 
 #define WATCHDOG_CMD "watchdog"
 #define WATCHDOG_ENABLE "enable"
