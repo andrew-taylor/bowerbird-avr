@@ -61,31 +61,21 @@
 #define NEW_CABLE
 
 #define POWER_PORT PORTC
+#define ALL_POWER_PINS 8
 #define BEAGLE_RESET_CMD "REALLY reset the Beagleboard"
 #ifdef NEW_CABLE
-#define POWER_PIN_BEAGLE 7
+	#define POWER_PIN_BEAGLE 7
+	#define POWER_PIN_USBMIC 6
 #else
-#define POWER_PIN_BEAGLE 0
+	#define POWER_PIN_BEAGLE 0
+	#define POWER_PIN_MIC 1
 #endif
 #define BEAGLE_RESET_DURATION_IN_S 10
 #define POWER_CMD "power"
 #define POWER_ON "on"
 #define POWER_OFF "off"
 #define POWER_MIC "usbmic"
-#define POWER_PIN_MIC 1
 #define DEVICE_NAME_MIC "USB Microphones"
-#define POWER_USBHUB "usbhub"
-#define POWER_PIN_USBHUB 2
-#define DEVICE_NAME_USBHUB "USB Hub"
-#define POWER_USBHD "usbhd"
-#define POWER_PIN_USBHD 3
-#define DEVICE_NAME_USBHD "USB Hard Disk"
-#define POWER_NEXTG "nextg"
-#define POWER_PIN_NEXTG 4
-#define DEVICE_NAME_NEXTG "NextG Modem"
-#define POWER_WIFI "wifi"
-#define POWER_PIN_WIFI 5
-#define DEVICE_NAME_WIFI "Wireless"
 
 #define RESET_CMD "REALLY reset the AVR"
 
@@ -183,13 +173,11 @@ void SetupHardware(void)
 
 	// Turn on power to devices that should have it (Beagle at least)
 	LCD_PORT |= (1 << POWER_PIN_LCD);
-	// Turn everything off
+	// Turn everything on
 	// (power port pins are active low)
-	POWER_PORT = 0xFF;
-	PowerOn(POWER_PIN_BEAGLE, 1);
-	PowerOn(POWER_PIN_USBHUB, 1);
+	PowerOn(ALL_POWER_PINS, 1);
 
-	/* Hardware Initialization */
+	/* Serial Port Initialization */
 	Serial_Init(LineEncoding.BaudRateBPS, true);
 	USB_Init();
 
@@ -502,8 +490,8 @@ void ProcessBeagleResetCommand(char *cmd)
 	// report to host that we're resetting the beagle
 	WriteStringToUSB("\r\nResetting Beagleboard (%s)\r\n", cmd);
 	WriteStringToLCD("OFF: Beagleboard");
-	// turn off power to beagle
-	PowerOn(POWER_PIN_BEAGLE, 0);
+	// turn off power to everything
+	PowerOn(ALL_POWER_PINS, 0);
 
 	SetDelayedBeagleWakeup(BEAGLE_RESET_DURATION_IN_S);
 }
@@ -549,26 +537,6 @@ void ProcessPowerCommand(char *cmd)
 		is_on_power_port = 1;
 		pin = POWER_PIN_MIC;
 		device_name = DEVICE_NAME_MIC;
-	}
-	else if (strncmp(cmd, POWER_NEXTG, strlen(POWER_NEXTG)) == 0) {
-		is_on_power_port = 1;
-		pin = POWER_PIN_NEXTG;
-		device_name = DEVICE_NAME_NEXTG;
-	}
-	else if (strncmp(cmd, POWER_WIFI, strlen(POWER_WIFI)) == 0) {
-		is_on_power_port = 1;
-		pin = POWER_PIN_WIFI;
-		device_name = DEVICE_NAME_WIFI;
-	}
-	else if (strncmp(cmd, POWER_USBHUB, strlen(POWER_USBHUB)) == 0) {
-		is_on_power_port = 1;
-		pin = POWER_PIN_USBHUB;
-		device_name = DEVICE_NAME_USBHUB;
-	}
-	else if (strncmp(cmd, POWER_USBHD, strlen(POWER_USBHD)) == 0) {
-		is_on_power_port = 1;
-		pin = POWER_PIN_USBHD;
-		device_name = DEVICE_NAME_USBHD;
 	}
 	else if (strncmp(cmd, POWER_LCD, strlen(POWER_LCD)) == 0) {
 		is_on_power_port = 0;
@@ -656,10 +624,17 @@ void ProcessWatchdogCommand(char *cmd)
  */
 void PowerOn(int pin, int on)
 {
-	if (on)
-		POWER_PORT &= ~(1 << pin);
-	else
-		POWER_PORT |= (1 << pin);
+	if (pin == ALL_POWER_PINS) {
+		if (on)
+			POWER_PORT = 0;
+		else
+			POWER_PORT = 0xFF;
+	} else {
+		if (on)
+			POWER_PORT &= ~(1 << pin);
+		else
+			POWER_PORT |= (1 << pin);
+	}
 }
 
 
@@ -759,8 +734,8 @@ ISR(TIMER3_COMPA_vect, ISR_BLOCK)
 		TIMSK3 &= ~(1 << OCIE3A); // Disable timer interrupt
 		TCCR3B &= ~(1 << CS30) & ~(1 << CS31) & ~(1 << CS32); // disable clock
 
-		// turn power to beagle back on
-		PowerOn(POWER_PIN_BEAGLE, 1);
+		// turn everything back on
+		PowerOn(ALL_POWER_PINS, 1);
 		WriteStringToLCD("ON: Beagleboard");
 		WriteStringToUSB("\r\nBeagleboard being turned on again.\r\n");
 	}
