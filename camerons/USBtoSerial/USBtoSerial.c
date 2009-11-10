@@ -37,7 +37,7 @@
 //#define WATCHDOG_DRY_RUN
 
 // defining this causes the watchdog to be reset by *any* comms from the beagle
-#define WATCHDOG_RESET_ON_ALL_COMMS
+//#define WATCHDOG_RESET_ON_ALL_COMMS
 
 #define MAX_LINE_LENGTH 1024
 #define COMMAND_PREFIX "avr://"
@@ -646,6 +646,8 @@ void ProcessWatchdogCommand(char *cmd)
 	else if (strncmp(cmd, WATCHDOG_PULSE, strlen(WATCHDOG_PULSE)) == 0) {
 		// Reset the beagle watchdog counter
 		Beagle_Watchdog_Counter = 0;
+		WriteStringToUSB("WATCHDOG pulse\n");
+		WriteStringToLCD("WATCHDOG pulse\n");
 	}
 	else {
 		WriteStringToUSB("\r\nGot unrecognised WATCHDOG command '%s'\r\n", cmd);
