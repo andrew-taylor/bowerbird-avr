@@ -30,7 +30,7 @@
 
 #include "../LowLevel/USBMode.h"
 #include "USBInterrupt.h"
-#include "../../../../camerons/AudioInput/Shared.h"
+#include "../../../../AudioInput_8bit/Shared.h"
 
 void USB_INT_DisableAllInterrupts(void)
 {

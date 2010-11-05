@@ -89,14 +89,14 @@ OBJDIR = .
 SRC = $(TARGET).c \
 		Descriptors.c \
 		ADC.c \
-		../../MyUSB/Scheduler/Scheduler.c \
-		../../MyUSB/Drivers/USB/LowLevel/LowLevel.c \
-		../../MyUSB/Drivers/USB/LowLevel/Endpoint.c \
-		../../MyUSB/Drivers/USB/LowLevel/DevChapter9.c \
-		../../MyUSB/Drivers/USB/HighLevel/USBTask.c \
-		../../MyUSB/Drivers/USB/HighLevel/USBInterrupt.c \
-		../../MyUSB/Drivers/USB/HighLevel/Events.c \
-		../../MyUSB/Drivers/USB/HighLevel/StdDescriptors.c \
+		../MyUSB/Scheduler/Scheduler.c \
+		../MyUSB/Drivers/USB/LowLevel/LowLevel.c \
+		../MyUSB/Drivers/USB/LowLevel/Endpoint.c \
+		../MyUSB/Drivers/USB/LowLevel/DevChapter9.c \
+		../MyUSB/Drivers/USB/HighLevel/USBTask.c \
+		../MyUSB/Drivers/USB/HighLevel/USBInterrupt.c \
+		../MyUSB/Drivers/USB/HighLevel/Events.c \
+		../MyUSB/Drivers/USB/HighLevel/StdDescriptors.c \
 
 # List C++ source files here. (C dependencies are automatically generated.)
 CPPSRC = 
@@ -129,7 +129,7 @@ DEBUG = dwarf-2
 #     Each directory must be seperated by a space.
 #     Use forward slashes for directory separators.
 #     For a directory that has spaces, enclose it in quotes.
-EXTRAINCDIRS = ../../
+EXTRAINCDIRS = ../
 
 
 # Compiler flag to set the C Standard level.
