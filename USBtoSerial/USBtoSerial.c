@@ -123,9 +123,9 @@ short LCD_Lines = 0;
 
 // counter to store how many seconds since we last heard from the beagle
 int Beagle_Watchdog_Counter;
-// counter for delayed beagle restarting
-int Beagle_Restart_Countdown;
-// flag to store if last reset was due to the internal watchdog
+// counters for delayed beagle power up/down (in seconds)
+uint32_t Beagle_Delayed_Power_Down, Beagle_Delayed_Power_Up;
+// set to 0 for power on after delay, set to 1 for power on after delay
 int AVR_watchdog_reset = 0;
 
 
@@ -174,7 +174,7 @@ void SetupHardware(void)
 	// Turn on power to devices that should have it (Beagle at least)
 	LCD_PORT |= (1 << POWER_PIN_LCD);
 	// Turn everything on (soon)
-	SetDelayedBeagleWakeup(5);
+	SetDelayedBeaglePowerDown(0,5);
 
 	/* Serial Port Initialization */
 	Serial_Init(LineEncoding.BaudRateBPS, true);
@@ -437,7 +437,7 @@ void ProcessByte(uint8_t ReceivedByte)
 
 			// see if we understand the command
 			if (strncmp(CommandBuffer, BEAGLE_RESET_CMD, strlen(BEAGLE_RESET_CMD)) == 0) {
-				ProcessBeagleResetCommand(CommandBuffer + strlen(BEAGLE_RESET_CMD) + 1);
+				ProcessBeaglePowerDownCommand(CommandBuffer + strlen(BEAGLE_RESET_CMD) + 1);
 			}
 			else if (strncmp(CommandBuffer, POWER_CMD, strlen(POWER_CMD)) == 0) {
 				ProcessPowerCommand(CommandBuffer + strlen(POWER_CMD) + 1);
@@ -479,20 +479,45 @@ void ProcessByte(uint8_t ReceivedByte)
 	}
 }
 
+// strtol/stroul apparently broken in some avr-gcc versions
+uint32_t strtouint32(const char *nptr, char **endptr, int base) {
+    if (!nptr) {
+        if (endptr)
+            *endptr = NULL;
+        return 0;
+    }
+    while (*nptr == ' ')
+        nptr++;
+    uint32_t n = 0;
+    while (*nptr >= '0' && *nptr <= '9') {
+        n *= base;
+        n += *nptr - '0';
+        nptr++;
+    }
+    if (endptr)
+        *endptr = (char *)nptr;
+    return n;
+}
+
 
 /** Handle a command to reset the beagleboard. This involves turning off power
  *  to the beagle power pin for a while, then turning it back on.
  */
-void ProcessBeagleResetCommand(char *cmd)
+void ProcessBeaglePowerDownCommand(char *cmd)
 {
-	// ignore argument for now
-	// report to host that we're resetting the beagle
-	WriteStringToUSB("\r\nResetting Beagleboard (%s)\r\n", cmd);
-	WriteStringToLCD("OFF: Beagleboard");
-	// turn off power to everything
-	PowerOn(ALL_POWER_PINS, 0);
+	uint32_t wait_seconds = 0;
+	uint32_t power_down_seconds = 0;
+    char *p;
 
-	SetDelayedBeagleWakeup(BEAGLE_RESET_DURATION_IN_S);
+	WriteStringToUSB("ProcessBeaglePowerDownCommand='%s'\r\n", cmd);
+    wait_seconds = strtouint32(cmd, &p, 10);
+    power_down_seconds = strtouint32(p, NULL, 10);
+//    WriteStringToUSB("wait_seconds=%ld power_down_seconds=%ld cmd='%s' p='%s'\r\n", (long)wait_seconds, (long)power_down_seconds, cmd, p);
+	if (!power_down_seconds)
+		power_down_seconds = BEAGLE_RESET_DURATION_IN_S;
+	WriteStringToUSB("\r\nIn (%ld) seconds powering Beagleboard off for (%ld) seconds\r\n", wait_seconds, power_down_seconds);
+	WriteStringToLCD("Beagleboard -> wait");
+	SetDelayedBeaglePowerDown(wait_seconds, power_down_seconds);
 }
 
 
@@ -642,10 +667,13 @@ void PowerOn(int pin, int on)
 /** Set timer3 to go off after the given number of seconds and wake the
  * beagleboard up again.
  */
-void SetDelayedBeagleWakeup(int seconds)
+void SetDelayedBeaglePowerDown(uint32_t wait_seconds, uint32_t power_down_seconds)
 {
+    // don't want the watchdog disturbing our sleep
+    StopBeagleWatchdog();
 	// set the countdown
-	Beagle_Restart_Countdown = seconds;
+	Beagle_Delayed_Power_Down = wait_seconds;
+	Beagle_Delayed_Power_Up = power_down_seconds;
 
 	// start the timer
 	TCCR3B  = (1 << WGM32)  // Clear-timer-on-compare-match-OCR3A (CTC) mode
@@ -712,10 +740,10 @@ void WriteStringToUSB(char *format, ...)
 ISR(TIMER1_COMPA_vect, ISR_BLOCK)
 {
 	if (++Beagle_Watchdog_Counter > WATCHDOG_TIMEOUT_S) {
-#ifdef WATCHDOG_DRY_RUN
 		ProcessLCDCommand("Beagle Watchdog went off");
-#else
-		ProcessBeagleResetCommand("Beagle Watchdog timer went off");
+#ifndef WATCHDOG_DRY_RUN
+        PowerOn(ALL_POWER_PINS, 0);
+		ProcessBeaglePowerDownCommand(NULL);
 #endif
 		Beagle_Watchdog_Counter = 0;
 
@@ -724,22 +752,31 @@ ISR(TIMER1_COMPA_vect, ISR_BLOCK)
 }
 
 
-/** ISR to handle when the delayed beagle restart timer goes off. This basically
+/** ISR to handle when the delayed beagle power up/down timer goes off. This basically
  * requires us to decrement the counter, and when it gets to zero to turn the
- * beagle on, and disable the timer
+ * beagle on/off, and disable the timer
  */
 ISR(TIMER3_COMPA_vect, ISR_BLOCK)
 {
-	if (--Beagle_Restart_Countdown <= 0) {
+    if (Beagle_Delayed_Power_Down > 0) {
+        Beagle_Delayed_Power_Down--;
+        if (Beagle_Delayed_Power_Down > 0)
+            return;
+        // turn off beagle board
+        PowerOn(POWER_PIN_BEAGLE, 0);
+        // safe to do this with interrupt on??
+		WriteStringToLCD("Beagleboard -> off");
+		WriteStringToUSB("\r\nBeagleboard turned off.\r\n");
+    }
+	if (--Beagle_Delayed_Power_Up <= 0) {
 		// disable the timer
 		TIMSK3 &= ~(1 << OCIE3A); // Disable timer interrupt
 		TCCR3B &= ~(1 << CS30) & ~(1 << CS31) & ~(1 << CS32); // disable clock
 
-		// turn everything back on
+		// turn everything on
 		PowerOn(ALL_POWER_PINS, 1);
-
-		WriteStringToLCD("ON: Beagleboard");
-		WriteStringToUSB("\r\nBeagleboard being turned on again.\r\n");
+		WriteStringToLCD("Beagleboard -> on");
+		WriteStringToUSB("\r\nBeagleboard turned on.\r\n");
 	}
 }
 

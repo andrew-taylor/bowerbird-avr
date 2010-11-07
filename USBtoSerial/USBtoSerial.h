@@ -168,12 +168,12 @@
 		void StartBeagleWatchdog(void);
 		void StopBeagleWatchdog(void);
 		void ProcessByte(uint8_t);
-		void ProcessBeagleResetCommand(char *);
+		void ProcessBeaglePowerDownCommand(char *);
 		void ProcessPowerCommand(char *);
 		void ProcessLCDCommand(char *);
 		void ProcessWatchdogCommand(char *);
 		void PowerOn(int, int);
-		void SetDelayedBeagleWakeup(int);
+		void SetDelayedBeaglePowerDown(uint32_t, uint32_t);
 		void WriteStringToLCD(char *, ...);
 		void WriteStringToUSB(char *, ...);
 		void InitialiseAVRWatchdog(void);
