@@ -5,4 +5,3 @@ Future ideas
 * Version 2 of the spec (Formats20 final.pdf) supports Extended Audio Data
 Formats, which include the ability to timestamp each sample (e.g. from our GPS)
 * specify microphone coordinates so can use standardised code in ARM?
-
