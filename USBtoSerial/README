@@ -1,0 +1,71 @@
+
+The power/hub board acts as a USB serial device.
+The beagleboard reads&writes character via a serial line
+to the power/hub board and it reads/writes them to the USB connection.
+
+The beagleboard console tty is connected to the serial line so a
+beagleboard console login is possible via the power/hub USB.  and console
+message are seen on the power/hub .  This is used for debugging.
+
+The power/hub board also inspects the characters coming from
+the beagleboard for command strings that look like these:
+
+avr://power on|off n                    # power device n on/off 
+avr://watchdog 0|1                      # disable/enable watchdog -
+                                        # reboots beagleboard if  600 seconds without pulse
+avr://pulse                             # reset watchdog counter to 0 (keep alive)
+avr://lcd string                        # send string to LCD
+avr://clear                             # clear LCD
+avr://reset                             # reset AVR
+avr://REALLY reset the Beagleboard n    # power beagleboard off for n seconds (default n=10)   
+
+So by writing the appropriate string to the console tty a beagleboard
+causes the power/hub board to carry out commands.
+
+To power from USB there must  be a jumper
+on power connector between the 2 pins closest to the USB socket.
+
+There also need to be a jumper (for 5V) on the header next to
+the power connector between the 2 pins closest to the edge of the boarda(pins 1& 2).
+
+SW1 = boat loader
+SW2 = reset
+
+To go into programmer mode hold SW1 down and hit SW2.
+
+On Ubuntu
+
+apt-get install git-core gitk make gcc-avr avr-libc alsa-utils wget
+
+# get karmic versions of dfu programmer
+wget http://au.archive.ubuntu.com/ubuntu/pool/universe/d/dfu-programmer/dfu-programmer_0.5.1-1_i386.deb
+dpkg -i dfu-programmer_0.5.1-1_i386.deb
+
+cd USBtoSerial
+make
+
+    Connect the board using the USB cable to the development computer.
+    Press and hold the bootloader button (SW1 on the mask)
+    Press and release the reset button (SW2 on the mask)
+    Release the bootloader button
+    Run ./flash 
+
+The board should then appear to the development system as a USB serial device.
+
+Testing Audio board
+
+First check that ALSA has seen it by listing the available capture devices and looking for an entry similar to Adaptor [8-Mic AVR Adaptor]:
+
+arecord -l
+
+Next set the gain for the four channel interface. I'm going to assume that it's the second capture card. You'll to change the argument to the -c parameter if that's not the case for you.
+
+amixer -c 1 sset '4 Channels' 70%
+
+Now record a 5 second sample (4 channels, 16bits, 8kHz). If you have other dynamic capture devices plugged in, you may need to adjust the argument to the -D parameter (try -Dplughw:1,0).
+
+arecord -Dplughw:0,0 -f S16_LE -r 8 -c 4 -d 5 temp.wav
+
+Play it back to see if it sounds right:
+
+aplay temp.wav
